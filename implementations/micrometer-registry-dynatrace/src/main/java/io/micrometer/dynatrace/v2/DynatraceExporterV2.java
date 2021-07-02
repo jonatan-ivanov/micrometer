@@ -23,10 +23,10 @@ import io.micrometer.core.instrument.distribution.HistogramSnapshot;
 import io.micrometer.core.instrument.distribution.ValueAtPercentile;
 import io.micrometer.core.instrument.util.AbstractPartition;
 import io.micrometer.core.ipc.http.HttpSender;
+import io.micrometer.core.util.internal.logging.InternalLogger;
+import io.micrometer.core.util.internal.logging.InternalLoggerFactory;
 import io.micrometer.dynatrace.AbstractDynatraceExporter;
 import io.micrometer.dynatrace.DynatraceConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -53,7 +53,7 @@ public final class DynatraceExporterV2 extends AbstractDynatraceExporter {
     private static final Pattern EXTRACT_LINES_INVALID = Pattern.compile("\"linesInvalid\":\\s?(\\d+)");
     private static final Pattern IS_NULL_ERROR_RESPONSE = Pattern.compile("\"error\":\\s?null");
 
-    private static final Logger logger = LoggerFactory.getLogger(DynatraceExporterV2.class);
+    private final InternalLogger logger = InternalLoggerFactory.getInstance(DynatraceExporterV2.class);
     private static final Map<String, String> staticDimensions = Collections.singletonMap("dt.metrics.source", "micrometer");
 
     private final String endpoint;
@@ -256,7 +256,7 @@ public final class DynatraceExporterV2 extends AbstractDynatraceExporter {
     private void send(List<String> metricLines) {
         try {
             String body = String.join("\n", metricLines);
-            logger.debug("sending lines:\n{}", body);
+            logger.debug("Sending lines:\n{}", body);
 
             HttpSender.Request.Builder requestBuilder = httpClient.post(endpoint);
             if (!ignoreToken) {
@@ -268,9 +268,9 @@ public final class DynatraceExporterV2 extends AbstractDynatraceExporter {
                     .withPlainText(body)
                     .send()
                     .onSuccess(response -> handleSuccess(metricLines.size(), response))
-                    .onError(response -> logger.error("Failed metric ingestion. Error code={} response.body={}", response.code(), response.body()));
+                    .onError(response -> logger.error("Failed metric ingestion: Error Code={}, Response Body={}", response.code(), response.body()));
         } catch (Throwable throwable) {
-            logger.error("Failed metric ingestion: {}", throwable.getMessage());
+            logger.error("Failed metric ingestion: {}" + throwable.getMessage(), throwable);
         }
     }
 
@@ -290,7 +290,10 @@ public final class DynatraceExporterV2 extends AbstractDynatraceExporter {
             }
         } else {
             // common pitfall if URI is supplied in V1 format (without endpoint path)
-            logger.error("Expected status code 202, got {}. Did you specify the ingest path (e.g.: /api/v2/metrics/ingest)?", response.code());
+            logger.error("Expected status code 202, got {}.\nResponse Body={}\nDid you specify the ingest path (e.g.: /api/v2/metrics/ingest)?",
+                    response.code(),
+                    response.body()
+            );
         }
     }
 

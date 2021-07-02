@@ -107,6 +107,19 @@ subprojects {
             }
         }
 
+        normalization {
+            runtimeClasspath {
+                metaInf {
+                    ignoreAttribute 'Build-Date'
+                    ignoreAttribute 'Change'
+                    ignoreAttribute 'Module-Origin'
+                    ignoreProperty 'Build-Date'
+                    ignoreProperty 'Change'
+                    ignoreProperty 'Module-Origin'
+                }
+            }
+        }
+
         //noinspection GroovyAssignabilityCheck
         test {
             // set heap size for the test JVM(s)

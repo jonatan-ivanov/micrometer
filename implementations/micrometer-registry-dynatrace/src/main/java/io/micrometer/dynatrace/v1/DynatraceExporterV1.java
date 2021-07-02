@@ -23,12 +23,12 @@ import io.micrometer.core.instrument.util.MeterPartition;
 import io.micrometer.core.instrument.util.StringUtils;
 import io.micrometer.core.ipc.http.HttpSender;
 import io.micrometer.core.lang.Nullable;
+import io.micrometer.core.util.internal.logging.InternalLogger;
+import io.micrometer.core.util.internal.logging.InternalLoggerFactory;
 import io.micrometer.dynatrace.AbstractDynatraceExporter;
 import io.micrometer.dynatrace.DynatraceApiVersion;
 import io.micrometer.dynatrace.DynatraceConfig;
 import io.micrometer.dynatrace.DynatraceNamingConvention;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,7 +54,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 public class DynatraceExporterV1 extends AbstractDynatraceExporter {
     private static final int MAX_MESSAGE_SIZE = 15360; //max message size in bytes that Dynatrace will accept
-    private final Logger logger = LoggerFactory.getLogger(DynatraceExporterV1.class);
+    private final InternalLogger logger = InternalLoggerFactory.getInstance(DynatraceExporterV1.class);
 
     /**
      * Metric names for which we have created the custom metric in the API
@@ -205,18 +205,19 @@ public class DynatraceExporterV1 extends AbstractDynatraceExporter {
                     .withJsonContent(customMetric.asJson())
                     .send()
                     .onSuccess(response -> {
-                        logger.debug("created {} as custom metric in dynatrace", customMetric.getMetricId());
+                        logger.debug("created {} as custom metric in Dynatrace", customMetric.getMetricId());
                         createdCustomMetrics.add(customMetric.getMetricId());
                     })
                     .onError(response ->
-                            logger.error("failed to create custom metric {} in dynatrace: {}",
+                            logger.error("failed to create custom metric {} in Dynatrace: Error Code={}, Response Body={}",
                                     customMetric.getMetricId(),
+                                    response.code(),
                                     response.body()
                             )
                     );
         } catch (Throwable e) {
             if (logger.isErrorEnabled()) {
-                logger.error("failed to create custom metric in dynatrace: " + customMetric.getMetricId(), e);
+                logger.error("failed to create custom metric in Dynatrace: " + customMetric.getMetricId(), e);
             }
         }
     }
@@ -234,12 +235,12 @@ public class DynatraceExporterV1 extends AbstractDynatraceExporter {
                             }
                         })
                         .onError(response -> {
-                            logger.error("failed to send metrics to dynatrace: {}", response.body());
+                            logger.error("failed to send metrics to Dynatrace: Error Code={}, Response Body={}", response.code(), response.body());
                             logger.debug("failed metrics payload: {}", postMessage.payload);
                         });
             }
         } catch (Throwable e) {
-            logger.error("failed to send metrics to dynatrace", e);
+            logger.error("failed to send metrics to Dynatrace", e);
         }
     }
 
