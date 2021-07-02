@@ -16,7 +16,10 @@
 package io.micrometer.boot2.samples;
 
 import io.micrometer.boot2.samples.components.PersonController;
+//CHECKSTYLE:OFF
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+//CHECKSTYLE:ON
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -24,9 +27,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication(scanBasePackageClasses = PersonController.class)
 @EnableScheduling
 public class DynatraceSampleV1 {
+    private static final Logger LOGGER = LoggerFactory.getLogger(DynatraceSampleV1.class);
+
     public static void main(String[] args) {
-        LoggerFactory.getLogger(DynatraceSampleV1.class)
-                .warn("This example uses the Dynatrace v1 metrics endpoint, which is in maintenance mode. We suggest using the v2 exporter instead.");
+        LOGGER.warn("This example uses the Dynatrace v1 metrics endpoint, which is in maintenance mode. We suggest using the v2 exporter instead.");
         new SpringApplicationBuilder(DynatraceSampleV1.class).profiles("dynatrace-v1").run(args);
     }
 }
