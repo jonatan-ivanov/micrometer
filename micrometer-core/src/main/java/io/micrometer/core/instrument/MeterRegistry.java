@@ -57,6 +57,9 @@ import java.util.function.Function;
 import java.util.function.ToDoubleFunction;
 import java.util.function.ToLongFunction;
 
+import org.springframework.observability.event.listener.RecordingListener;
+import org.springframework.observability.event.listener.composite.CompositeContext;
+
 import static java.lang.String.format;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
@@ -84,6 +87,15 @@ public abstract class MeterRegistry {
     private final List<BiConsumer<Meter.Id, String>> meterRegistrationFailedListeners = new CopyOnWriteArrayList<>();
     private final Config config = new Config();
     private final More more = new More();
+    private RecordingListener<CompositeContext> listener;
+
+    public RecordingListener<CompositeContext> getListener() {
+        return this.listener;
+    }
+
+    public void setListener(RecordingListener<CompositeContext> listener) {
+        this.listener = listener;
+    }
 
     // Even though writes are guarded by meterMapLock, iterators across value space are supported
     // Hence, we use CHM to support that iteration without ConcurrentModificationException risk

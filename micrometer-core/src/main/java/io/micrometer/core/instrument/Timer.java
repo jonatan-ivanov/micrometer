@@ -25,9 +25,16 @@ import io.micrometer.core.lang.Nullable;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+
+import org.springframework.observability.event.interval.IntervalEvent;
+import org.springframework.observability.event.listener.RecordingListener;
+import org.springframework.observability.event.listener.composite.CompositeContext;
 
 /**
  * Timer intended to track of a large number of short running events. Example would be something like
@@ -45,7 +52,7 @@ public interface Timer extends Meter, HistogramSupport {
      * @since 1.1.0
      */
     static Sample start() {
-        return start(Clock.SYSTEM);
+        return start(Metrics.globalRegistry);
     }
 
     /**
@@ -55,7 +62,8 @@ public interface Timer extends Meter, HistogramSupport {
      * @return A timing sample with start time recorded.
      */
     static Sample start(MeterRegistry registry) {
-        return start(registry.config().clock());
+        return new Sample(registry);
+        // return start(registry.config().clock());
     }
 
     /**
@@ -64,9 +72,9 @@ public interface Timer extends Meter, HistogramSupport {
      * @param clock a clock to be used
      * @return A timing sample with start time recorded.
      */
-    static Sample start(Clock clock) {
-        return new Sample(clock);
-    }
+    // static Sample start(Clock clock) {
+    //     return new Sample(clock);
+    // }
 
     static Builder builder(String name) {
         return new Builder(name);
@@ -265,12 +273,144 @@ public interface Timer extends Meter, HistogramSupport {
      * sample is stopped, allowing you to determine the timer's tags at the last minute.
      */
     class Sample {
-        private final long startTime;
         private final Clock clock;
+        private IntervalEvent event;
+        private final RecordingListener<CompositeContext> listener;
+        private final CompositeContext context;
+        private final Set<Tag> tags = new LinkedHashSet<>();
+        private String highCardinalityName;
+        private Duration duration = Duration.ZERO;
+        private long started = 0;
+        private long stopped = 0;
+        private long startWallTime = 0;
+        private Throwable error = null;
+        private final MeterRegistry meterRegistry;
 
-        Sample(Clock clock) {
-            this.clock = clock;
-            this.startTime = clock.monotonicTime();
+        public Sample(MeterRegistry meterRegistry) {
+            this.listener = meterRegistry.getListener();
+            this.context = listener.createContext();
+            this.clock = meterRegistry.config().clock();
+            this.meterRegistry =  meterRegistry;
+        }
+
+        public MeterRegistry getMeterRegistry() {
+            return this.meterRegistry;
+        }
+
+        public void setEvent(IntervalEvent event) {
+            this.event = event;
+        }
+
+        public IntervalEvent getEvent() {
+            return this.event;
+        }
+
+        public String getHighCardinalityName() {
+            return this.highCardinalityName;
+        }
+
+        public Sample setHighCardinalityName(String highCardinalityName) {
+            this.highCardinalityName = highCardinalityName;
+            return this;
+        }
+
+        public Duration getDuration() {
+            return this.duration;
+        }
+
+        public long getStartNanos() {
+            return this.started;
+        }
+
+        public Sample start() {
+            return start(clock.wallTime(), clock.monotonicTime());
+        }
+
+        public Sample start(long wallTime, long monotonicTime) {
+            if (this.started != 0) {
+                throw new IllegalStateException("IntervalRecording has already been started");
+            }
+            this.startWallTime = wallTime;
+            this.started = monotonicTime;
+            this.listener.onStart(this);
+            return this;
+        }
+
+        public long getStopNanos() {
+            return this.stopped;
+        }
+
+        public long getStartWallTime() {
+            return this.startWallTime;
+        }
+
+        public void stop() {
+            stop(clock.monotonicTime());
+        }
+
+        public void stop(long monotonicTime) {
+            verifyIfHasStarted();
+            verifyIfHasNotStopped();
+            this.stopped = monotonicTime;
+            this.duration = Duration.ofNanos(this.stopped - this.started);
+            this.listener.onStop(this);
+        }
+
+        public Iterable<Tag> getTags() {
+            return Collections.unmodifiableSet(this.tags);
+        }
+
+        public Sample tag(Tag tag) {
+            verifyIfHasNotStopped();
+            this.tags.add(tag);
+            return this;
+        }
+
+        public Throwable getError() {
+            return this.error;
+        }
+
+        public Sample error(Throwable error) {
+            verifyIfHasStarted();
+            verifyIfHasNotStopped();
+            if (this.error != null) {
+                throw new IllegalStateException("Only one error can be attached");
+            }
+
+            this.error = error;
+            this.listener.onError(this);
+            return this;
+        }
+
+        public CompositeContext getContext() {
+            return this.context;
+        }
+
+        private void verifyIfHasStarted() {
+            if (this.started == 0) {
+                throw new IllegalStateException("IntervalRecording hasn't been started");
+            }
+        }
+
+        private void verifyIfHasNotStopped() {
+            if (this.stopped != 0) {
+                throw new IllegalStateException("IntervalRecording has already been stopped");
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "Sample{" +
+                    "event=" + event +
+                    ", context=" + context +
+                    ", tags=" + tags +
+                    ", highCardinalityName='" + highCardinalityName + '\'' +
+                    ", duration=" + duration +
+                    ", started=" + started +
+                    ", stopped=" + stopped +
+                    ", startWallTime=" + startWallTime +
+                    ", error=" + error +
+                    '}';
         }
 
         /**
@@ -280,7 +420,7 @@ public interface Timer extends Meter, HistogramSupport {
          * @return The total duration of the sample in nanoseconds
          */
         public long stop(Timer timer) {
-            long durationNs = clock.monotonicTime() - startTime;
+            long durationNs = clock.monotonicTime() - started;
             timer.record(durationNs, TimeUnit.NANOSECONDS);
             return durationNs;
         }
