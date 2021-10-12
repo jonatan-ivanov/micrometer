@@ -21,6 +21,11 @@ import io.micrometer.core.instrument.distribution.CountAtBucket;
 import io.micrometer.core.instrument.distribution.HistogramSupport;
 import io.micrometer.core.instrument.distribution.ValueAtPercentile;
 import io.micrometer.core.instrument.distribution.pause.PauseDetector;
+import io.micrometer.core.instrument.event.NoOpRichSample;
+import io.micrometer.core.instrument.event.RichSample;
+import io.micrometer.core.instrument.event.RichSampleListener;
+import io.micrometer.core.instrument.event.SimpleRichSample;
+import io.micrometer.core.instrument.event.composite.CompositeContext;
 import io.micrometer.core.lang.Nullable;
 
 import java.time.Duration;
@@ -38,6 +43,16 @@ import java.util.function.Supplier;
  * @author Oleksii Bondar
  */
 public interface Timer extends Meter, HistogramSupport {
+
+    static RichSample start(String name, MeterRegistry registry) {
+        return richSample(name, registry).start();
+    }
+
+    static RichSample richSample(String name, MeterRegistry registry) {
+        RichSampleListener<CompositeContext> listener = registry.config().richSampleListener();
+        return listener != null ? new SimpleRichSample(name, registry.config().clock(), listener) : new NoOpRichSample();
+    }
+
     /**
      * Start a timing sample using the {@link Clock#SYSTEM System clock}.
      *

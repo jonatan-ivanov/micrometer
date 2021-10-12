@@ -23,6 +23,9 @@ import io.micrometer.core.instrument.config.NamingConvention;
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
 import io.micrometer.core.instrument.distribution.pause.NoPauseDetector;
 import io.micrometer.core.instrument.distribution.pause.PauseDetector;
+import io.micrometer.core.instrument.event.RichSampleListener;
+import io.micrometer.core.instrument.event.composite.CompositeContext;
+import io.micrometer.core.instrument.event.composite.CompositeRichSampleListener;
 import io.micrometer.core.instrument.noop.NoopCounter;
 import io.micrometer.core.instrument.noop.NoopDistributionSummary;
 import io.micrometer.core.instrument.noop.NoopFunctionCounter;
@@ -99,6 +102,7 @@ public abstract class MeterRegistry {
 
     private final AtomicBoolean closed = new AtomicBoolean();
     private PauseDetector pauseDetector = new NoPauseDetector();
+    @Nullable private RichSampleListener<CompositeContext> richSampleListener = null;
 
     /**
      * We'll use snake case as a general-purpose default for registries because it is the most
@@ -563,7 +567,7 @@ public abstract class MeterRegistry {
     }
 
     private <M extends Meter> M registerMeterIfNecessary(Class<M> meterClass, Meter.Id id,
-                                                         @Nullable DistributionStatisticConfig config, BiFunction<Meter.Id, DistributionStatisticConfig, M> builder,
+                                                         @Nullable DistributionStatisticConfig config, BiFunction<Id, DistributionStatisticConfig, M> builder,
                                                          Function<Meter.Id, M> noopBuilder) {
         Id mappedId = getMappedId(id);
         Meter m = getOrCreateMeter(config, builder, id, mappedId, noopBuilder);
@@ -843,6 +847,20 @@ public abstract class MeterRegistry {
          */
         public PauseDetector pauseDetector() {
             return pauseDetector;
+        }
+
+        public Config richSampleListener(RichSampleListener<?>... listeners) {
+            richSampleListener = new CompositeRichSampleListener(listeners);
+            return this;
+        }
+
+        public Config richSampleListener(RichSampleListener<CompositeContext> listener) {
+            richSampleListener = listener;
+            return this;
+        }
+
+        @Nullable public RichSampleListener<CompositeContext> richSampleListener() {
+            return richSampleListener;
         }
     }
 
