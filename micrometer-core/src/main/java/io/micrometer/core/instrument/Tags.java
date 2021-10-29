@@ -18,6 +18,7 @@ package io.micrometer.core.instrument;
 import io.micrometer.core.lang.Nullable;
 
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -264,6 +265,10 @@ public final class Tags implements Iterable<Tag> {
      */
     public static Tags of(@Nullable Tag... tags) {
         return empty().and(tags);
+    }
+
+    public static Tags from(Supplier<Iterable<Tag>> tagsProvider) {
+        return of(tagsProvider.get());
     }
 
     /**
