@@ -23,13 +23,16 @@ import io.micrometer.core.lang.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static io.micrometer.core.instrument.Tag.Cardinality.LOW;
 import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.partitioningBy;
 
 /**
  * A named and dimensioned producer of one or more measurements.
@@ -179,6 +182,7 @@ public interface Meter {
     class Id {
         private final String name;
         private final Tags tags;
+        private final Tags highCardinalityTags;
         private final Type type;
 
         @Nullable
@@ -190,11 +194,23 @@ public interface Meter {
         @Nullable
         private final String baseUnit;
 
-        @Incubating(since = "1.1.0")
-        Id(String name, Tags tags, @Nullable String baseUnit, @Nullable String description, Type type,
-           @Nullable Meter.Id syntheticAssociation) {
+        private Id(String name, Tags tags, Tags highCardinalityTags, @Nullable String baseUnit, @Nullable String description, Type type,
+                @Nullable Meter.Id syntheticAssociation) {
             this.name = name;
             this.tags = tags;
+            this.highCardinalityTags = highCardinalityTags;
+            this.baseUnit = baseUnit;
+            this.description = description;
+            this.type = type;
+            this.syntheticAssociation = syntheticAssociation;
+        }
+
+        @Incubating(since = "1.1.0")
+        Id(String name, Tags tags, @Nullable String baseUnit, @Nullable String description, Type type, @Nullable Meter.Id syntheticAssociation) {
+            this.name = name;
+            Map<Boolean, List<Tag>> tagsByCardinality = tags.stream().collect(partitioningBy(tag -> tag.getCardinality() == LOW));
+            this.tags = Tags.of(tagsByCardinality.get(true));
+            this.highCardinalityTags = Tags.of(tagsByCardinality.get(false));
             this.baseUnit = baseUnit;
             this.description = description;
             this.type = type;
@@ -212,7 +228,7 @@ public interface Meter {
          * @return A new id with the provided name. The source id remains unchanged.
          */
         public Id withName(String newName) {
-            return new Id(newName, tags, baseUnit, description, type);
+            return new Id(newName, tags, highCardinalityTags, baseUnit, description, type, null);
         }
 
         /**
@@ -267,7 +283,7 @@ public interface Meter {
          * @return A new id with the provided base unit.
          */
         public Id withBaseUnit(@Nullable String newBaseUnit) {
-            return new Id(name, tags, newBaseUnit, description, type);
+            return new Id(name, tags, highCardinalityTags, newBaseUnit, description, type, null);
         }
 
         /**
@@ -288,6 +304,10 @@ public interface Meter {
 
         public Iterable<Tag> getTagsAsIterable() {
             return tags;
+        }
+
+        public Iterable<Tag> getHighCardinalityTagsAsIterable() {
+            return highCardinalityTags;
         }
 
         /**

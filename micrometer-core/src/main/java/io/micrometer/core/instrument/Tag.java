@@ -15,6 +15,8 @@
  */
 package io.micrometer.core.instrument;
 
+import static io.micrometer.core.instrument.Tag.Cardinality.LOW;
+
 /**
  * Key/value pair representing a dimension of a meter used to classify and drill into measurements.
  *
@@ -25,12 +27,22 @@ public interface Tag extends Comparable<Tag> {
 
     String getValue();
 
+    Cardinality getCardinality();
+
     static Tag of(String key, String value) {
-        return new ImmutableTag(key, value);
+        return of(key, value, LOW);
+    }
+
+    static Tag of(String key, String value, Cardinality cardinality) {
+        return new ImmutableTag(key, value, cardinality);
     }
 
     @Override
     default int compareTo(Tag o) {
         return getKey().compareTo(o.getKey());
+    }
+
+    enum Cardinality {
+        LOW, HIGH
     }
 }
