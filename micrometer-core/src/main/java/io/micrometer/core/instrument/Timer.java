@@ -286,6 +286,14 @@ public interface Timer extends Meter, HistogramSupport {
 
         }
 
+        public long stop(Timer.Builder timerBuilder) {
+            return stop(
+                    timerBuilder
+                            .tags(context != null ? context.getLowCardinalityTags() : Tags.empty())
+                            .register(registry)
+            );
+        }
+
         /**
          * Records the duration of the operation.
          *
@@ -308,7 +316,7 @@ public interface Timer extends Meter, HistogramSupport {
     }
 
     @SuppressWarnings("unchecked")
-    public class Context {
+    class Context {
         private final Map<Class<?>, Object> map = new HashMap<>();
         
         public <T> Context put(Class<T> clazz, T object) {
@@ -330,6 +338,18 @@ public interface Timer extends Meter, HistogramSupport {
         
         public <T> T computeIfAbsent(Class<T> clazz, Function<Class<?>, ? extends T> mappingFunction) {
             return (T) this.map.computeIfAbsent(clazz, mappingFunction);
+        }
+
+        public Tags getLowCardinalityTags() {
+            return Tags.empty();
+        }
+
+        public Tags getHighCardinalityTags() {
+            return Tags.empty();
+        }
+
+        public final Tags getAllTags() {
+            return Tags.concat(getLowCardinalityTags(), getHighCardinalityTags());
         }
     }
 
