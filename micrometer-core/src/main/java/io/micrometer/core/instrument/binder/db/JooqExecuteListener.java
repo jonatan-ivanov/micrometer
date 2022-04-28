@@ -15,10 +15,10 @@
  */
 package io.micrometer.core.instrument.binder.db;
 
+import io.micrometer.common.util.StringUtils;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Timer;
-import io.micrometer.core.instrument.util.StringUtils;
 import java.util.HashMap;
 import java.util.Map;
 import org.jooq.ExecuteContext;
