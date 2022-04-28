@@ -16,13 +16,13 @@
 package io.micrometer.dynatrace.v2;
 
 import com.dynatrace.metric.util.*;
+import io.micrometer.common.util.internal.logging.InternalLogger;
+import io.micrometer.common.util.internal.logging.InternalLoggerFactory;
 import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.distribution.HistogramSnapshot;
 import io.micrometer.core.instrument.distribution.ValueAtPercentile;
 import io.micrometer.core.instrument.util.AbstractPartition;
 import io.micrometer.core.ipc.http.HttpSender;
-import io.micrometer.core.util.internal.logging.InternalLogger;
-import io.micrometer.core.util.internal.logging.InternalLoggerFactory;
 import io.micrometer.dynatrace.AbstractDynatraceExporter;
 import io.micrometer.dynatrace.DynatraceConfig;
 import io.micrometer.dynatrace.types.DynatraceSummarySnapshot;

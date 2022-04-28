@@ -13,18 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.micrometer.core.util.internal.logging;
+package io.micrometer.common.util.internal.logging;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import static io.micrometer.core.util.internal.logging.InternalLogLevel.DEBUG;
-import static io.micrometer.core.util.internal.logging.InternalLogLevel.ERROR;
-import static io.micrometer.core.util.internal.logging.InternalLogLevel.INFO;
-import static io.micrometer.core.util.internal.logging.InternalLogLevel.TRACE;
-import static io.micrometer.core.util.internal.logging.InternalLogLevel.WARN;
+import static io.micrometer.common.util.internal.logging.InternalLogLevel.DEBUG;
+import static io.micrometer.common.util.internal.logging.InternalLogLevel.ERROR;
+import static io.micrometer.common.util.internal.logging.InternalLogLevel.INFO;
+import static io.micrometer.common.util.internal.logging.InternalLogLevel.TRACE;
+import static io.micrometer.common.util.internal.logging.InternalLogLevel.WARN;
 
 /**
  * Simple implementation of {@link InternalLogger} that does not produce any output or delegate the work to another logger,

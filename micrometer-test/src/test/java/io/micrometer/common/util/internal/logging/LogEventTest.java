@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.micrometer.core.util.internal.logging;
+package io.micrometer.common.util.internal.logging;
 
 import java.io.IOException;
 
 import org.junit.jupiter.api.Test;
 
-import static io.micrometer.core.util.internal.logging.InternalLogLevel.INFO;
+import static io.micrometer.common.util.internal.logging.InternalLogLevel.INFO;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
