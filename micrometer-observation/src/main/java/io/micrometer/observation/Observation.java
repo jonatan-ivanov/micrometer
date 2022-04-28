@@ -31,9 +31,8 @@ import java.util.stream.Stream;
 
 import io.micrometer.common.KeyValue;
 import io.micrometer.common.KeyValues;
-import io.micrometer.observation.lang.NonNull;
-import io.micrometer.observation.lang.Nullable;
-
+import io.micrometer.common.lang.NonNull;
+import io.micrometer.common.lang.Nullable;
 
 /**
  * An act of viewing or noticing a fact or an occurrence for some scientific or other special purpose (According to dictionary.com).
