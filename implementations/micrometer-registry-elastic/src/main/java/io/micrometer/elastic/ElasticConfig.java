@@ -15,19 +15,16 @@
  */
 package io.micrometer.elastic;
 
-import java.time.format.DateTimeFormatter;
-
 import io.micrometer.core.instrument.config.validate.InvalidReason;
 import io.micrometer.core.instrument.config.validate.Validated;
 import io.micrometer.core.instrument.step.StepRegistryConfig;
 import io.micrometer.core.lang.Nullable;
 
+import java.time.format.DateTimeFormatter;
+
 import static io.micrometer.core.instrument.config.MeterRegistryConfigValidator.checkAll;
 import static io.micrometer.core.instrument.config.MeterRegistryConfigValidator.checkRequired;
-import static io.micrometer.core.instrument.config.validate.PropertyValidator.getBoolean;
-import static io.micrometer.core.instrument.config.validate.PropertyValidator.getSecret;
-import static io.micrometer.core.instrument.config.validate.PropertyValidator.getString;
-import static io.micrometer.core.instrument.config.validate.PropertyValidator.getUrlString;
+import static io.micrometer.core.instrument.config.validate.PropertyValidator.*;
 
 /**
  * Configuration for {@link ElasticMeterRegistry}.

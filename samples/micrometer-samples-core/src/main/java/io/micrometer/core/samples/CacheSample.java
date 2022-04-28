@@ -15,9 +15,6 @@
  */
 package io.micrometer.core.samples;
 
-import java.time.Duration;
-import java.util.stream.IntStream;
-
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -26,6 +23,9 @@ import io.micrometer.core.samples.utils.SampleConfig;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.DelimiterBasedFrameDecoder;
 import reactor.netty.http.client.HttpClient;
+
+import java.time.Duration;
+import java.util.stream.IntStream;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 
