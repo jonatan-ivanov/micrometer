@@ -333,7 +333,7 @@ public interface Observation {
      * @param observationConvention key values provider
      * @return this
      */
-    Observation observationConvention(ObservationConvention<?> observationConvention);
+    Observation observationConvention(ObservationConvention<? extends Context> observationConvention);
 
     /**
      * Signals an error.
@@ -783,6 +783,7 @@ public interface Observation {
          * @return the previous value associated with the key, or null if there was no
          * mapping for the key
          */
+        @Nullable
         public Object remove(Object key) {
             return this.map.remove(key);
         }
@@ -833,6 +834,7 @@ public interface Observation {
          * @param <T> value type
          * @return object or one derived from the mapping function if not present
          */
+        @Nullable
         public <T> T computeIfAbsent(Object key, Function<Object, ? extends T> mappingFunction) {
             return (T) this.map.computeIfAbsent(key, mappingFunction);
         }
