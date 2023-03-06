@@ -20,6 +20,7 @@ import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.Measurement;
 import io.micrometer.core.instrument.Statistic;
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
+import io.micrometer.core.instrument.distribution.HistogramSnapshot;
 import io.micrometer.core.instrument.distribution.TimeWindowMax;
 
 import java.util.Arrays;
@@ -54,7 +55,7 @@ public class StepDistributionSummary extends AbstractDistributionSummary {
     public StepDistributionSummary(Id id, Clock clock, DistributionStatisticConfig distributionStatisticConfig,
             double scale, long stepMillis, boolean supportsAggregablePercentiles) {
         super(id, clock, distributionStatisticConfig, scale, supportsAggregablePercentiles);
-        this.countTotal = new StepTuple2<>(clock, stepMillis, 0L, 0.0, count::sumThenReset, total::sumThenReset);
+        this.countTotal = new StepTuple2<>(clock, stepMillis, 0L, 0.0, count::sumThenReset, count::sum, total::sumThenReset, total::sum);
         this.max = new TimeWindowMax(clock, distributionStatisticConfig);
     }
 
@@ -70,9 +71,22 @@ public class StepDistributionSummary extends AbstractDistributionSummary {
         return countTotal.poll1();
     }
 
+    public long currentCount() {
+        return countTotal.pollCurrent1();
+    }
+
     @Override
     public double totalAmount() {
         return countTotal.poll2();
+    }
+
+    public double currentTotalAmount() {
+        return countTotal.pollCurrent2();
+    }
+
+    public double currentMean() {
+        long count = currentCount();
+        return count == 0 ? 0 : currentTotalAmount() / count;
     }
 
     @Override
@@ -80,10 +94,23 @@ public class StepDistributionSummary extends AbstractDistributionSummary {
         return max.poll();
     }
 
+    public double currentMax() {
+        return max.pollCurrent();
+    }
+
     @Override
     public Iterable<Measurement> measure() {
         return Arrays.asList(new Measurement(() -> (double) count(), Statistic.COUNT),
                 new Measurement(this::totalAmount, Statistic.TOTAL), new Measurement(this::max, Statistic.MAX));
+    }
+
+    public Iterable<Measurement> measureCurrent() {
+        return Arrays.asList(new Measurement(() -> (double) currentCount(), Statistic.COUNT),
+                new Measurement(this::currentTotalAmount, Statistic.TOTAL), new Measurement(this::currentMax, Statistic.MAX));
+    }
+
+    public HistogramSnapshot takeCurrentSnapshot() {
+        return histogram.takeSnapshot(currentCount(), currentTotalAmount(), currentMax());
     }
 
 }

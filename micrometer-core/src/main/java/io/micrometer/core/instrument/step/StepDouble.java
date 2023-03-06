@@ -40,6 +40,11 @@ public class StepDouble extends StepValue<Double> {
     }
 
     @Override
+    protected Supplier<Double> currentValueSupplier() {
+        return current::sum;
+    }
+
+    @Override
     protected Double noValue() {
         return 0.0;
     }

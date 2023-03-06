@@ -50,4 +50,14 @@ public class StepFunctionCounter<T> extends AbstractMeter implements FunctionCou
         return count.poll();
     }
 
+    public double countCurrent() {
+        T obj2 = ref.get();
+        if (obj2 != null) {
+            double prevLast = last;
+            last = f.applyAsDouble(obj2);
+            count.getCurrent().add(last - prevLast);
+        }
+        return count.pollCurrent();
+    }
+
 }

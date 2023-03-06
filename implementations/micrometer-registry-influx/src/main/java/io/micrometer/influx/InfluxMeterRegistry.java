@@ -17,7 +17,10 @@ package io.micrometer.influx;
 
 import io.micrometer.common.util.StringUtils;
 import io.micrometer.core.instrument.*;
+import io.micrometer.core.instrument.step.StepCounter;
+import io.micrometer.core.instrument.step.StepDistributionSummary;
 import io.micrometer.core.instrument.step.StepMeterRegistry;
+import io.micrometer.core.instrument.step.StepTimer;
 import io.micrometer.core.instrument.util.DoubleFormat;
 import io.micrometer.core.instrument.util.MeterPartition;
 import io.micrometer.core.instrument.util.NamedThreadFactory;
@@ -122,6 +125,10 @@ public class InfluxMeterRegistry extends StepMeterRegistry {
 
     @Override
     protected void publish() {
+        publish(false);
+    }
+
+    private void publish(boolean finalPublish) {
         createDatabaseIfNecessary();
 
         try {
@@ -136,9 +143,9 @@ public class InfluxMeterRegistry extends StepMeterRegistry {
                     .withPlainText(batch.stream()
                         .flatMap(m -> m.match(
                                 gauge -> writeGauge(gauge.getId(), gauge.value()),
-                                counter -> writeCounter(counter.getId(), counter.count()),
-                                this::writeTimer,
-                                this::writeSummary,
+                                finalPublish ? counter -> writeCounter(counter.getId(), ((StepCounter)counter).currentCount()) : counter -> writeCounter(counter.getId(), counter.count()),
+                                finalPublish ? this::writeCurrentTimer : this::writeTimer,
+                                finalPublish ? this::writeCurrentSummary : this::writeSummary,
                                 this::writeLongTaskTimer,
                                 gauge -> writeGauge(gauge.getId(), gauge.value(getBaseTimeUnit())),
                                 counter -> writeCounter(counter.getId(), counter.count()),
@@ -231,10 +238,33 @@ public class InfluxMeterRegistry extends StepMeterRegistry {
         return Stream.of(influxLineProtocol(timer.getId(), "histogram", fields));
     }
 
+    private Stream<String> writeCurrentTimer(Timer timer) {
+        StepTimer stepTimer = (StepTimer) timer;
+        final Stream<Field> fields = Stream.of(
+                new Field("sum", stepTimer.currentTotalTime(getBaseTimeUnit())),
+                new Field("count", stepTimer.currentCount()),
+                new Field("mean", stepTimer.currentMean(getBaseTimeUnit())),
+                new Field("upper", stepTimer.currentMax(getBaseTimeUnit()))
+        );
+
+        return Stream.of(influxLineProtocol(timer.getId(), "histogram", fields));
+    }
+
     private Stream<String> writeSummary(DistributionSummary summary) {
         final Stream<Field> fields = Stream.of(new Field("sum", summary.totalAmount()),
                 new Field("count", summary.count()), new Field("mean", summary.mean()),
                 new Field("upper", summary.max()));
+
+        return Stream.of(influxLineProtocol(summary.getId(), "histogram", fields));
+    }
+
+    private Stream<String> writeCurrentSummary(DistributionSummary summary) {
+        StepDistributionSummary stepSummary = (StepDistributionSummary) summary;
+        final Stream<Field> fields = Stream.of(
+                new Field("sum", stepSummary.currentTotalAmount()),
+                new Field("count", stepSummary.currentCount()),
+                new Field("mean", stepSummary.currentMean()),
+                new Field("upper", stepSummary.currentMax()));
 
         return Stream.of(influxLineProtocol(summary.getId(), "histogram", fields));
     }
@@ -252,6 +282,14 @@ public class InfluxMeterRegistry extends StepMeterRegistry {
     @Override
     protected final TimeUnit getBaseTimeUnit() {
         return TimeUnit.MILLISECONDS;
+    }
+
+    @Override
+    public void close() {
+        if (config.enabled()) {
+            publish(true);
+        }
+        stop();
     }
 
     public static class Builder {

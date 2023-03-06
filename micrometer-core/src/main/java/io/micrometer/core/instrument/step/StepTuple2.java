@@ -40,21 +40,25 @@ public class StepTuple2<T1, T2> {
     private final T2 t2NoValue;
 
     private final Supplier<T1> t1Supplier;
+    private final Supplier<T1> t1CurrentSupplier;
 
     private final Supplier<T2> t2Supplier;
+    private final Supplier<T2> t2CurrentSupplier;
 
     private volatile T1 t1Previous;
 
     private volatile T2 t2Previous;
 
-    public StepTuple2(Clock clock, long stepMillis, T1 t1NoValue, T2 t2NoValue, Supplier<T1> t1Supplier,
-            Supplier<T2> t2Supplier) {
+    public StepTuple2(Clock clock, long stepMillis, T1 t1NoValue, T2 t2NoValue, Supplier<T1> t1Supplier, Supplier<T1> t1CurrentSupplier,
+            Supplier<T2> t2Supplier, Supplier<T2> t2CurrentSupplier) {
         this.clock = clock;
         this.stepMillis = stepMillis;
         this.t1NoValue = t1NoValue;
         this.t2NoValue = t2NoValue;
         this.t1Supplier = t1Supplier;
+        this.t1CurrentSupplier = t1CurrentSupplier;
         this.t2Supplier = t2Supplier;
+        this.t2CurrentSupplier = t2CurrentSupplier;
         this.t1Previous = t1NoValue;
         this.t2Previous = t2NoValue;
         lastInitPos = new AtomicLong(clock.wallTime() / stepMillis);
@@ -81,12 +85,20 @@ public class StepTuple2<T1, T2> {
         return t1Previous;
     }
 
+    public T1 pollCurrent1() {
+        return t1CurrentSupplier.get();
+    }
+
     /**
      * @return The value for the last completed interval.
      */
     public T2 poll2() {
         rollCount(clock.wallTime());
         return t2Previous;
+    }
+
+    public T2 pollCurrent2() {
+        return t2CurrentSupplier.get();
     }
 
 }

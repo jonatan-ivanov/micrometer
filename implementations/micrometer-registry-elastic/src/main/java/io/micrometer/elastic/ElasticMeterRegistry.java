@@ -19,7 +19,10 @@ import io.micrometer.common.lang.NonNull;
 import io.micrometer.common.util.StringUtils;
 import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.distribution.HistogramSnapshot;
+import io.micrometer.core.instrument.step.StepCounter;
+import io.micrometer.core.instrument.step.StepDistributionSummary;
 import io.micrometer.core.instrument.step.StepMeterRegistry;
+import io.micrometer.core.instrument.step.StepTimer;
 import io.micrometer.core.instrument.util.MeterPartition;
 import io.micrometer.core.instrument.util.NamedThreadFactory;
 import io.micrometer.core.ipc.http.HttpSender;
@@ -178,15 +181,28 @@ public class ElasticMeterRegistry extends StepMeterRegistry {
 
     @Override
     protected void publish() {
+        publish(false);
+    }
+
+    private void publish(boolean finalPublish) {
         createIndexTemplateIfNeeded();
 
         String uri = config.host() + "/" + indexName() + "/_bulk";
         for (List<Meter> batch : MeterPartition.partition(this, config.batchSize())) {
             try {
                 String requestBody = batch.stream()
-                    .map(m -> m.match(this::writeGauge, this::writeCounter, this::writeTimer, this::writeSummary,
-                            this::writeLongTaskTimer, this::writeTimeGauge, this::writeFunctionCounter,
-                            this::writeFunctionTimer, this::writeMeter))
+                    .map(m -> m.match(
+                            this::writeGauge,
+                            finalPublish ? this::writeCurrentCounter : this::writeCounter,
+                            finalPublish ? this::writeCurrentTimer : this::writeTimer,
+                            finalPublish ? this::writeCurrentSummary : this::writeSummary,
+                            this::writeLongTaskTimer,
+                            this::writeTimeGauge,
+                            this::writeFunctionCounter,
+                            this::writeFunctionTimer,
+                            this::writeMeter
+                        )
+                    )
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .collect(joining("\n", "", "\n"));
@@ -245,6 +261,16 @@ public class ElasticMeterRegistry extends StepMeterRegistry {
     // VisibleForTesting
     Optional<String> writeCounter(Counter counter) {
         return writeCounter(counter, counter.count());
+    }
+
+    Optional<String> writeCurrentCounter(Counter counter) {
+        if (counter instanceof StepCounter) {
+            StepCounter stepCounter = (StepCounter) counter;
+            return writeCounter(counter, stepCounter.currentCount());
+        }
+        else {
+            return writeCounter(counter, counter.count());
+        }
     }
 
     // VisibleForTesting
@@ -315,9 +341,26 @@ public class ElasticMeterRegistry extends StepMeterRegistry {
         }));
     }
 
+    Optional<String> writeCurrentTimer(Timer timer) {
+        StepTimer stepTimer = (StepTimer) timer;
+        return Optional.of(writeDocument(stepTimer, builder -> {
+            builder.append(",\"count\":").append(stepTimer.currentCount());
+            builder.append(",\"sum\":").append(stepTimer.currentTotalTime(getBaseTimeUnit()));
+            builder.append(",\"mean\":").append(stepTimer.currentMean(getBaseTimeUnit()));
+            builder.append(",\"max\":").append(stepTimer.currentMax(getBaseTimeUnit()));
+        }));
+    }
+
     // VisibleForTesting
     Optional<String> writeSummary(DistributionSummary summary) {
-        HistogramSnapshot histogramSnapshot = summary.takeSnapshot();
+        return writeHistogramSnapshot(summary, summary.takeSnapshot());
+    }
+
+    Optional<String> writeCurrentSummary(DistributionSummary summary) {
+        return writeHistogramSnapshot(summary, ((StepDistributionSummary) summary).takeCurrentSnapshot());
+    }
+
+    Optional<String> writeHistogramSnapshot(DistributionSummary summary, HistogramSnapshot histogramSnapshot) {
         return Optional.of(writeDocument(summary, builder -> {
             builder.append(",\"count\":").append(histogramSnapshot.count());
             builder.append(",\"sum\":").append(histogramSnapshot.total());
@@ -434,6 +477,14 @@ public class ElasticMeterRegistry extends StepMeterRegistry {
             return new ElasticMeterRegistry(config, clock, threadFactory, httpClient);
         }
 
+    }
+
+    @Override
+    public void close() {
+        if (config.enabled()) {
+            publish(true);
+        }
+        stop();
     }
 
 }

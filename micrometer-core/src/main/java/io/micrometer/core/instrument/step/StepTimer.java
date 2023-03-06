@@ -17,11 +17,14 @@ package io.micrometer.core.instrument.step;
 
 import io.micrometer.core.instrument.AbstractTimer;
 import io.micrometer.core.instrument.Clock;
+import io.micrometer.core.instrument.Measurement;
+import io.micrometer.core.instrument.Statistic;
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
 import io.micrometer.core.instrument.distribution.TimeWindowMax;
 import io.micrometer.core.instrument.distribution.pause.PauseDetector;
 import io.micrometer.core.instrument.util.TimeUtils;
 
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -52,7 +55,7 @@ public class StepTimer extends AbstractTimer {
             final PauseDetector pauseDetector, final TimeUnit baseTimeUnit, final long stepDurationMillis,
             final boolean supportsAggregablePercentiles) {
         super(id, clock, distributionStatisticConfig, pauseDetector, baseTimeUnit, supportsAggregablePercentiles);
-        countTotal = new StepTuple2<>(clock, stepDurationMillis, 0L, 0L, count::sumThenReset, total::sumThenReset);
+        countTotal = new StepTuple2<>(clock, stepDurationMillis, 0L, 0L, count::sumThenReset, count::sum, total::sumThenReset, total::sum);
         max = new TimeWindowMax(clock, distributionStatisticConfig);
     }
 
@@ -69,9 +72,22 @@ public class StepTimer extends AbstractTimer {
         return countTotal.poll1();
     }
 
+    public long currentCount() {
+        return countTotal.pollCurrent1();
+    }
+
     @Override
     public double totalTime(final TimeUnit unit) {
         return TimeUtils.nanosToUnit(countTotal.poll2(), unit);
+    }
+
+    public double currentTotalTime(final TimeUnit unit) {
+        return TimeUtils.nanosToUnit(countTotal.pollCurrent2(), unit);
+    }
+
+    public double currentMean(TimeUnit unit) {
+        long count = currentCount();
+        return count == 0 ? 0 : currentTotalTime(unit) / count;
     }
 
     @Override
@@ -79,4 +95,14 @@ public class StepTimer extends AbstractTimer {
         return TimeUtils.nanosToUnit(max.poll(), unit);
     }
 
+    public double currentMax(final TimeUnit unit) {
+        return TimeUtils.nanosToUnit(max.pollCurrent(), unit);
+    }
+
+
+    public Iterable<Measurement> measureCurrent() {
+        return Arrays.asList(new Measurement(() -> (double) currentCount(), Statistic.COUNT),
+                new Measurement(() -> currentTotalTime(baseTimeUnit()), Statistic.TOTAL_TIME),
+                new Measurement(() -> currentMax(baseTimeUnit()), Statistic.MAX));
+    }
 }

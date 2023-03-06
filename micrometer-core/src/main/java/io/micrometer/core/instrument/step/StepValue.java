@@ -46,6 +46,8 @@ public abstract class StepValue<V> {
 
     protected abstract Supplier<V> valueSupplier();
 
+    protected abstract Supplier<V> currentValueSupplier();
+
     /**
      * @return value that should be returned by {@link #poll} if within the first step
      * period or if the previous step didn't record a value.
@@ -71,6 +73,10 @@ public abstract class StepValue<V> {
     public V poll() {
         rollCount(clock.wallTime());
         return previous;
+    }
+
+    public V pollCurrent() {
+        return currentValueSupplier().get();
     }
 
 }

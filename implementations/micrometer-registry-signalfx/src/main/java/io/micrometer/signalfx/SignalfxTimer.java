@@ -54,7 +54,7 @@ final class SignalfxTimer extends AbstractTimer {
             PauseDetector pauseDetector, TimeUnit baseTimeUnit, long stepMillis, boolean isDelta) {
         super(id, clock, CumulativeHistogramConfigUtil.updateConfig(distributionStatisticConfig), pauseDetector,
                 baseTimeUnit, false);
-        countTotal = new StepTuple2<>(clock, stepMillis, 0L, 0L, count::sumThenReset, total::sumThenReset);
+        countTotal = new StepTuple2<>(clock, stepMillis, 0L, 0L, count::sumThenReset, count::sum, total::sumThenReset, total::sum);
         max = new TimeWindowMax(clock, distributionStatisticConfig);
         if (distributionStatisticConfig.isPublishingHistogram() && isDelta) {
             deltaHistogramCounts = new DeltaHistogramCounts();

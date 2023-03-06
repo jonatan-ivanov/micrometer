@@ -95,11 +95,21 @@ public class TimeWindowMax {
         }
     }
 
+    private double pollCurrent(DoubleSupplier maxSupplier) {
+        synchronized (this) {
+            return maxSupplier.getAsDouble();
+        }
+    }
+
     /**
      * @return An unscaled max. For use by distribution summary implementations.
      */
     public double poll() {
         return poll(() -> Double.longBitsToDouble(ringBuffer[currentBucket].get()));
+    }
+
+    public double pollCurrent() {
+        return pollCurrent(() -> Double.longBitsToDouble(ringBuffer[currentBucket].get()));
     }
 
     /**

@@ -34,6 +34,11 @@ public class StepLong extends StepValue<Long> {
     }
 
     @Override
+    protected Supplier<Long> currentValueSupplier() {
+        return current::sum;
+    }
+
+    @Override
     protected Long noValue() {
         return 0L;
     }

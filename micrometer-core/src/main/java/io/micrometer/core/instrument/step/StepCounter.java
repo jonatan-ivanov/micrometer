@@ -45,4 +45,8 @@ public class StepCounter extends AbstractMeter implements Counter {
         return value.poll();
     }
 
+    public double currentCount() {
+        return value.pollCurrent();
+    }
+
 }

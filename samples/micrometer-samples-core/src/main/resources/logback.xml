@@ -29,5 +29,7 @@
         <appender-ref ref="STDOUT" />
     </root>
 
+    <logger name="io.micrometer.influx.InfluxMeterRegistry" level="warn"/>
+    <logger name="io.micrometer.elastic.ElasticMeterRegistry" level="warn"/>
     <logger name="io.micrometer" level="trace"/>
 </configuration>
