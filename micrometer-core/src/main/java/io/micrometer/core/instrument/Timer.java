@@ -27,11 +27,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BooleanSupplier;
-import java.util.function.DoubleSupplier;
-import java.util.function.IntSupplier;
-import java.util.function.LongSupplier;
-import java.util.function.Supplier;
+import java.util.function.*;
 
 /**
  * Timer intended to track of a large number of short running events. Example would be
@@ -430,6 +426,10 @@ public interface Timer extends Meter, HistogramSupport {
             return super.description(description);
         }
 
+        public Function<Tags, Timer> with(MeterRegistry registry) {
+            return extraTags -> register(registry, tags.and(extraTags));
+        }
+
         /**
          * Add the timer to a single registry, or return an existing timer in that
          * registry. The returned timer will be unique for each registry, but each
@@ -439,6 +439,10 @@ public interface Timer extends Meter, HistogramSupport {
          * @return A new or existing timer.
          */
         public Timer register(MeterRegistry registry) {
+            return register(registry, tags);
+        }
+
+        private Timer register(MeterRegistry registry, Tags tags) {
             // the base unit for a timer will be determined by the monitoring system
             // implementation
             return registry.timer(new Meter.Id(name, tags, null, description, Type.TIMER),
