@@ -30,6 +30,7 @@ import io.micrometer.core.instrument.push.PushMeterRegistry;
 import io.micrometer.core.instrument.step.StepCounter;
 import io.micrometer.core.instrument.step.StepFunctionCounter;
 import io.micrometer.core.instrument.step.StepFunctionTimer;
+import io.micrometer.core.instrument.step.StepMeterRegistry;
 import io.micrometer.core.instrument.util.MeterPartition;
 import io.micrometer.core.instrument.util.NamedThreadFactory;
 import io.micrometer.core.instrument.util.TimeUtils;
@@ -46,6 +47,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.DoubleSupplier;
@@ -76,9 +79,12 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
 
     private final Resource resource;
 
+    private final io.opentelemetry.proto.metrics.v1.AggregationTemporality otlpAggregationTemporality;
+
     private long deltaAggregationTimeUnixNano = 0L;
 
-    private final io.opentelemetry.proto.metrics.v1.AggregationTemporality otlpAggregationTemporality;
+    @Nullable
+    private ScheduledExecutorService meterPollingService;
 
     public OtlpMeterRegistry() {
         this(OtlpConfig.DEFAULT, Clock.SYSTEM);
@@ -100,6 +106,31 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
         this.setDeltaAggregationTimeUnixNano();
         config().namingConvention(NamingConvention.dot);
         start(DEFAULT_THREAD_FACTORY);
+    }
+
+    @Override
+    public void start(ThreadFactory threadFactory) {
+        super.start(threadFactory);
+
+        if (config.enabled() && isDelta()) {
+            this.meterPollingService = Executors.newSingleThreadScheduledExecutor(threadFactory);
+            this.meterPollingService.scheduleAtFixedRate(this::pollMetersToRollover, getInitialDelay(),
+                    config.step().toMillis(), TimeUnit.MILLISECONDS);
+        }
+    }
+
+    @Override
+    public void stop() {
+        super.stop();
+        if (this.meterPollingService != null) {
+            this.meterPollingService.shutdown();
+        }
+    }
+
+    @Override
+    public void close() {
+        stop();
+        super.close();
     }
 
     @Override
@@ -249,6 +280,24 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
                 .setAggregationTemporality(otlpAggregationTemporality)
                 .build())
             .build();
+    }
+
+    /**
+     * This subtly different from {@link StepMeterRegistry#pollMetersToRollover()} in that
+     * this uses takeSnapshot() to rollover the timers/summaries as OtlpDeltaTimer is
+     * using a StepValue for maintaining distributions.
+     */
+    // VisibleForTesting
+    void pollMetersToRollover() {
+        this.getMeters()
+            .forEach(m -> m.match(gauge -> null, Counter::count, Timer::takeSnapshot, DistributionSummary::takeSnapshot,
+                    meter -> null, meter -> null, FunctionCounter::count, FunctionTimer::count, meter -> null));
+    }
+
+    private long getInitialDelay() {
+        long stepMillis = config.step().toMillis();
+        // schedule one millisecond into the next step
+        return stepMillis - (clock.wallTime() % stepMillis) + 1;
     }
 
     // VisibleForTesting
