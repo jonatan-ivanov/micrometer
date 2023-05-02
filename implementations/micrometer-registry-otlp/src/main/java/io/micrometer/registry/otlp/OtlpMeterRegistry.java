@@ -283,9 +283,12 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
     }
 
     /**
-     * This subtly different from {@link StepMeterRegistry#pollMetersToRollover()} in that
-     * this uses takeSnapshot() to rollover the timers/summaries as OtlpDeltaTimer is
-     * using a StepValue for maintaining distributions.
+     * This will poll the values from meters, which will cause a roll over for Step-meters
+     * if past the step boundary. This gives some control over when roll over happens
+     * separate from when publishing happens. This method is almost the same as the one in
+     * {@link StepMeterRegistry} it is subtly different from it in that this uses
+     * {@code takeSnapshot()} to roll over the timers/summaries as OtlpDeltaTimer is using
+     * a {@code StepValue} for maintaining distributions.
      */
     // VisibleForTesting
     void pollMetersToRollover() {
