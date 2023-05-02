@@ -84,6 +84,18 @@ public class StepBucketHistogram extends StepValue<CountAtBucket[]> implements H
         return getEmptyCounts(buckets);
     }
 
+    /**
+     * This is an internal method not meant for general use.
+     * <p>
+     * Force a rollover of the values returned by the {@code StepValue} and never roll
+     * over again after. See: {@code StepMeter}, {@code StepTimer}, and
+     * {@code StepDistributionSummary}
+     */
+    @Override
+    public void _closingRollover() {
+        super._closingRollover();
+    }
+
     private static CountAtBucket[] getEmptyCounts(double[] buckets) {
         CountAtBucket[] countAtBuckets = new CountAtBucket[buckets.length];
         for (int i = 0; i < buckets.length; i++) {

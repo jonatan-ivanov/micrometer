@@ -62,6 +62,7 @@ import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATI
  *
  * @author Tommy Ludwig
  * @author Lenin Jaganathan
+ * @author Jonatan Ivanov
  * @since 1.9.0
  */
 public class OtlpMeterRegistry extends PushMeterRegistry {
@@ -205,6 +206,35 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
             .expiry(this.config.step())
             .build()
             .merge(DistributionStatisticConfig.DEFAULT);
+    }
+
+    @Override
+    public void close() {
+        stop();
+        if (!isPublishing() && isDelta()) {
+            getMeters().forEach(this::closingRollover);
+        }
+        super.close();
+    }
+
+    // Either we do this or make StepMeter public
+    // and still call OtlpStepTimer and OtlpStepDistributionSummary separately.
+    private void closingRollover(Meter meter) {
+        if (meter instanceof StepCounter) {
+            ((StepCounter) meter)._closingRollover();
+        }
+        if (meter instanceof StepFunctionCounter) {
+            ((StepFunctionCounter<?>) meter)._closingRollover();
+        }
+        if (meter instanceof StepFunctionTimer) {
+            ((StepFunctionTimer<?>) meter)._closingRollover();
+        }
+        if (meter instanceof OtlpStepTimer) {
+            ((OtlpStepTimer) meter)._closingRollover();
+        }
+        if (meter instanceof OtlpStepDistributionSummary) {
+            ((OtlpStepDistributionSummary) meter)._closingRollover();
+        }
     }
 
     // VisibleForTesting
