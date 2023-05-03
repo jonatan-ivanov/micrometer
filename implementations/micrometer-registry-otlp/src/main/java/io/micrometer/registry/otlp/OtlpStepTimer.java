@@ -18,7 +18,6 @@ package io.micrometer.registry.otlp;
 import io.micrometer.core.instrument.AbstractTimer;
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
-import io.micrometer.core.instrument.distribution.StepBucketHistogram;
 import io.micrometer.core.instrument.distribution.pause.PauseDetector;
 import io.micrometer.core.instrument.util.TimeUtils;
 
@@ -84,8 +83,8 @@ class OtlpStepTimer extends AbstractTimer {
     void _closingRollover() {
         countTotal._closingRollover();
         max._closingRollover();
-        if (histogram instanceof StepBucketHistogram) { // can be noop
-            ((StepBucketHistogram) histogram)._closingRollover();
+        if (histogram instanceof OtlpStepBucketHistogram) { // can be noop
+            ((OtlpStepBucketHistogram) histogram)._closingRollover();
         }
     }
 

@@ -1,3 +1,9 @@
+package io.micrometer.registry.otlp;
+
+import io.micrometer.core.instrument.Clock;
+import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
+import io.micrometer.core.instrument.distribution.StepBucketHistogram;
+
 /*
  * Copyright 2023 VMware, Inc.
  *
@@ -14,23 +20,16 @@
  * limitations under the License.
  */
 
-package io.micrometer.registry.otlp;
-
-import io.micrometer.core.instrument.Clock;
-import io.micrometer.core.instrument.step.StepTuple2;
-
-import java.util.function.Supplier;
-
 /**
  * This is an internal class not meant for general use. The only reason to have this class
- * so that {@code OtlpMeterRegistry} can call {@code _closingRollover} on
- * {@code StepTuple2} and the method does not need to be public.
+ * so that components in this package can call {@code _closingRollover} on
+ * {@code StepBucketHistogram} and the method does not need to be public.
  */
-class OtlpStepTuple2<T1, T2> extends StepTuple2<T1, T2> {
+class OtlpStepBucketHistogram extends StepBucketHistogram {
 
-    OtlpStepTuple2(Clock clock, long stepMillis, T1 t1NoValue, T2 t2NoValue, Supplier<T1> t1Supplier,
-            Supplier<T2> t2Supplier) {
-        super(clock, stepMillis, t1NoValue, t2NoValue, t1Supplier, t2Supplier);
+    OtlpStepBucketHistogram(Clock clock, long stepMillis, DistributionStatisticConfig distributionStatisticConfig,
+            boolean supportsAggregablePercentiles, boolean isCumulativeBucketCounts) {
+        super(clock, stepMillis, distributionStatisticConfig, supportsAggregablePercentiles, isCumulativeBucketCounts);
     }
 
     @Override

@@ -18,7 +18,6 @@ package io.micrometer.registry.otlp;
 import io.micrometer.core.instrument.AbstractDistributionSummary;
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
-import io.micrometer.core.instrument.distribution.StepBucketHistogram;
 
 import java.util.concurrent.atomic.DoubleAdder;
 import java.util.concurrent.atomic.LongAdder;
@@ -80,8 +79,8 @@ class OtlpStepDistributionSummary extends AbstractDistributionSummary {
     void _closingRollover() {
         countTotal._closingRollover();
         max._closingRollover();
-        if (histogram instanceof StepBucketHistogram) { // can be noop
-            ((StepBucketHistogram) histogram)._closingRollover();
+        if (histogram instanceof OtlpStepBucketHistogram) { // can be noop
+            ((OtlpStepBucketHistogram) histogram)._closingRollover();
         }
     }
 
