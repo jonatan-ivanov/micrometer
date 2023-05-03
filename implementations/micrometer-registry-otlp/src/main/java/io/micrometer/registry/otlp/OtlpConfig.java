@@ -17,6 +17,7 @@ package io.micrometer.registry.otlp;
 
 import io.micrometer.core.instrument.config.validate.Validated;
 import io.micrometer.core.instrument.push.PushRegistryConfig;
+import io.micrometer.core.instrument.step.StepRegistryConfig;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -35,7 +36,7 @@ import static io.micrometer.core.instrument.config.validate.PropertyValidator.ge
  * @author Lenin Jaganathan
  * @since 1.9.0
  */
-public interface OtlpConfig extends PushRegistryConfig {
+public interface OtlpConfig extends StepRegistryConfig {
 
     /**
      * Configuration with default values.

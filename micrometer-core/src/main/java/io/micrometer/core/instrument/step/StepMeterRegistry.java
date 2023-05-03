@@ -43,7 +43,7 @@ public abstract class StepMeterRegistry extends PushMeterRegistry {
     private final StepRegistryConfig config;
 
     @Nullable
-    private ScheduledExecutorService meterPollingService;
+    protected ScheduledExecutorService meterPollingService;
 
     public StepMeterRegistry(StepRegistryConfig config, Clock clock) {
         super(config, clock);
@@ -148,7 +148,7 @@ public abstract class StepMeterRegistry extends PushMeterRegistry {
      * separate from when publishing happens.
      */
     // VisibleForTesting
-    void pollMetersToRollover() {
+    protected void pollMetersToRollover() {
         this.getMeters()
             .forEach(m -> m.match(gauge -> null, Counter::count, Timer::count, DistributionSummary::count,
                     meter -> null, meter -> null, FunctionCounter::count, FunctionTimer::count, meter -> null));

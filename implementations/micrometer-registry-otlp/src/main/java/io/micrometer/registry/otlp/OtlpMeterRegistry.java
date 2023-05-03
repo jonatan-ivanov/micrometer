@@ -15,7 +15,6 @@
  */
 package io.micrometer.registry.otlp;
 
-import io.micrometer.common.lang.Nullable;
 import io.micrometer.common.util.internal.logging.InternalLogger;
 import io.micrometer.common.util.internal.logging.InternalLoggerFactory;
 import io.micrometer.core.instrument.Gauge;
@@ -23,10 +22,7 @@ import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.config.NamingConvention;
 import io.micrometer.core.instrument.distribution.*;
 import io.micrometer.core.instrument.distribution.pause.PauseDetector;
-import io.micrometer.core.instrument.internal.DefaultGauge;
 import io.micrometer.core.instrument.internal.DefaultLongTaskTimer;
-import io.micrometer.core.instrument.internal.DefaultMeter;
-import io.micrometer.core.instrument.push.PushMeterRegistry;
 import io.micrometer.core.instrument.step.StepCounter;
 import io.micrometer.core.instrument.step.StepFunctionCounter;
 import io.micrometer.core.instrument.step.StepFunctionTimer;
@@ -47,8 +43,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.DoubleSupplier;
@@ -68,7 +62,7 @@ import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATI
  * @author Jonatan Ivanov
  * @since 1.9.0
  */
-public class OtlpMeterRegistry extends PushMeterRegistry {
+public class OtlpMeterRegistry extends StepMeterRegistry {
 
     private static final ThreadFactory DEFAULT_THREAD_FACTORY = new NamedThreadFactory("otlp-metrics-publisher");
 
@@ -83,9 +77,6 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
     private final io.opentelemetry.proto.metrics.v1.AggregationTemporality otlpAggregationTemporality;
 
     private long deltaAggregationTimeUnixNano = 0L;
-
-    @Nullable
-    private ScheduledExecutorService meterPollingService;
 
     public OtlpMeterRegistry() {
         this(OtlpConfig.DEFAULT, Clock.SYSTEM);
@@ -113,18 +104,9 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
     public void start(ThreadFactory threadFactory) {
         super.start(threadFactory);
 
-        if (config.enabled() && isDelta()) {
-            this.meterPollingService = Executors.newSingleThreadScheduledExecutor(threadFactory);
-            this.meterPollingService.scheduleAtFixedRate(this::pollMetersToRollover, getInitialDelay(),
-                    config.step().toMillis(), TimeUnit.MILLISECONDS);
-        }
-    }
-
-    @Override
-    public void stop() {
-        super.stop();
-        if (this.meterPollingService != null) {
-            this.meterPollingService.shutdown();
+        if (meterPollingService != null && isCumulative()) {
+            this.meterPollingService.shutdownNow();
+            this.meterPollingService = null;
         }
     }
 
@@ -164,11 +146,6 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
     }
 
     @Override
-    protected <T> Gauge newGauge(Meter.Id id, @Nullable T obj, ToDoubleFunction<T> valueFunction) {
-        return new DefaultGauge<>(id, obj, valueFunction);
-    }
-
-    @Override
     protected Counter newCounter(Meter.Id id) {
         return isCumulative() ? new OtlpCumulativeCounter(id, this.clock)
                 : new StepCounter(id, this.clock, config.step().toMillis());
@@ -190,11 +167,6 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
                 ? new OtlpCumulativeDistributionSummary(id, this.clock, distributionStatisticConfig, scale, true)
                 : new OtlpStepDistributionSummary(id, clock, distributionStatisticConfig, scale,
                         config.step().toMillis());
-    }
-
-    @Override
-    protected Meter newMeter(Meter.Id id, Meter.Type type, Iterable<Measurement> measurements) {
-        return new DefaultMeter(id, type, measurements);
     }
 
     @Override
@@ -243,17 +215,7 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
     }
 
     // Either we do this or make StepMeter public
-    // and still call OtlpStepTimer and OtlpStepDistributionSummary separately.
     private void closingRollover(Meter meter) {
-        if (meter instanceof StepCounter) {
-            ((StepCounter) meter)._closingRollover();
-        }
-        if (meter instanceof StepFunctionCounter) {
-            ((StepFunctionCounter<?>) meter)._closingRollover();
-        }
-        if (meter instanceof StepFunctionTimer) {
-            ((StepFunctionTimer<?>) meter)._closingRollover();
-        }
         if (meter instanceof OtlpStepTimer) {
             ((OtlpStepTimer) meter)._closingRollover();
         }
@@ -315,16 +277,11 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
      * a {@code StepValue} for maintaining distributions.
      */
     // VisibleForTesting
-    void pollMetersToRollover() {
+    @Override
+    protected void pollMetersToRollover() {
         this.getMeters()
             .forEach(m -> m.match(gauge -> null, Counter::count, Timer::takeSnapshot, DistributionSummary::takeSnapshot,
                     meter -> null, meter -> null, FunctionCounter::count, FunctionTimer::count, meter -> null));
-    }
-
-    private long getInitialDelay() {
-        long stepMillis = config.step().toMillis();
-        // schedule one millisecond into the next step
-        return stepMillis - (clock.wallTime() % stepMillis) + 1;
     }
 
     // VisibleForTesting
