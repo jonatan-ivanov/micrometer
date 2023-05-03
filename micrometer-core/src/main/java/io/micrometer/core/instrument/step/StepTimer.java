@@ -18,6 +18,7 @@ package io.micrometer.core.instrument.step;
 import io.micrometer.core.instrument.AbstractTimer;
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
+import io.micrometer.core.instrument.distribution.Histogram;
 import io.micrometer.core.instrument.distribution.TimeWindowMax;
 import io.micrometer.core.instrument.distribution.pause.PauseDetector;
 import io.micrometer.core.instrument.util.TimeUtils;
@@ -56,6 +57,24 @@ public class StepTimer extends AbstractTimer implements StepMeter {
         max = new TimeWindowMax(clock, distributionStatisticConfig);
     }
 
+    /**
+     * Create a new {@code StepTimer}.
+     * @param id ID
+     * @param clock clock
+     * @param distributionStatisticConfig distribution statistic configuration
+     * @param pauseDetector pause detector
+     * @param baseTimeUnit base time unit
+     * @param stepDurationMillis step in milliseconds
+     * @param histogram histogram
+     */
+    public StepTimer(final Id id, final Clock clock, final DistributionStatisticConfig distributionStatisticConfig,
+            final PauseDetector pauseDetector, final TimeUnit baseTimeUnit, final long stepDurationMillis,
+            Histogram histogram) {
+        super(id, clock, pauseDetector, baseTimeUnit, histogram);
+        countTotal = new StepTuple2<>(clock, stepDurationMillis, 0L, 0L, count::sumThenReset, total::sumThenReset);
+        max = new TimeWindowMax(clock, distributionStatisticConfig);
+    }
+
     @Override
     protected void recordNonNegative(final long amount, final TimeUnit unit) {
         final long nanoAmount = (long) TimeUtils.convert(amount, unit, TimeUnit.NANOSECONDS);
@@ -81,7 +100,10 @@ public class StepTimer extends AbstractTimer implements StepMeter {
 
     @Override
     public void _closingRollover() {
-        countTotal._closingRollover();
+        countTotal.closingRollover();
+        if (histogram instanceof StepValue) {
+            ((StepValue<?>) histogram)._closingRollover();
+        }
     }
 
 }

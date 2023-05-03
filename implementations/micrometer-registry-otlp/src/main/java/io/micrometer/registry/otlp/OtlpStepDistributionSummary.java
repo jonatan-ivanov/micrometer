@@ -15,20 +15,11 @@
  */
 package io.micrometer.registry.otlp;
 
-import io.micrometer.core.instrument.AbstractDistributionSummary;
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
+import io.micrometer.core.instrument.step.StepDistributionSummary;
 
-import java.util.concurrent.atomic.DoubleAdder;
-import java.util.concurrent.atomic.LongAdder;
-
-class OtlpStepDistributionSummary extends AbstractDistributionSummary {
-
-    private final LongAdder count = new LongAdder();
-
-    private final DoubleAdder total = new DoubleAdder();
-
-    private final OtlpStepTuple2<Long, Double> countTotal;
+class OtlpStepDistributionSummary extends StepDistributionSummary {
 
     private final StepMax max;
 
@@ -42,27 +33,16 @@ class OtlpStepDistributionSummary extends AbstractDistributionSummary {
      */
     public OtlpStepDistributionSummary(Id id, Clock clock, DistributionStatisticConfig distributionStatisticConfig,
             double scale, long stepMillis) {
-        super(id, scale, OtlpMeterRegistry.getHistogram(clock, distributionStatisticConfig,
-                AggregationTemporality.DELTA, stepMillis));
-        this.countTotal = new OtlpStepTuple2<>(clock, stepMillis, 0L, 0.0, count::sumThenReset, total::sumThenReset);
+        super(id, clock, distributionStatisticConfig, scale, stepMillis, OtlpMeterRegistry.getHistogram(clock,
+                distributionStatisticConfig, AggregationTemporality.DELTA, stepMillis));
         this.max = new StepMax(clock, stepMillis);
     }
 
     @Override
     protected void recordNonNegative(double amount) {
-        count.add(1);
-        total.add(amount);
+        super.recordNonNegative(amount);
+        // double work
         max.record(amount);
-    }
-
-    @Override
-    public long count() {
-        return countTotal.poll1();
-    }
-
-    @Override
-    public double totalAmount() {
-        return countTotal.poll2();
     }
 
     @Override
@@ -70,18 +50,10 @@ class OtlpStepDistributionSummary extends AbstractDistributionSummary {
         return max.poll();
     }
 
-    /**
-     * This is an internal method not meant for general use.
-     * <p>
-     * Force a rollover of the values returned by a step meter and never roll over again
-     * after. See: {@code StepMeter} and {@code StepDistributionSummary}
-     */
-    void _closingRollover() {
-        countTotal._closingRollover();
+    @Override
+    public void _closingRollover() {
+        super._closingRollover();
         max._closingRollover();
-        if (histogram instanceof OtlpStepBucketHistogram) { // can be noop
-            ((OtlpStepBucketHistogram) histogram)._closingRollover();
-        }
     }
 
 }

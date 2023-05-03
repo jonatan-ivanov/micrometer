@@ -15,22 +15,15 @@
  */
 package io.micrometer.registry.otlp;
 
-import io.micrometer.core.instrument.AbstractTimer;
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
 import io.micrometer.core.instrument.distribution.pause.PauseDetector;
+import io.micrometer.core.instrument.step.StepTimer;
 import io.micrometer.core.instrument.util.TimeUtils;
 
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.LongAdder;
 
-class OtlpStepTimer extends AbstractTimer {
-
-    private final LongAdder count = new LongAdder();
-
-    private final LongAdder total = new LongAdder();
-
-    private final OtlpStepTuple2<Long, Long> countTotal;
+class OtlpStepTimer extends StepTimer {
 
     private final StepMax max;
 
@@ -45,28 +38,17 @@ class OtlpStepTimer extends AbstractTimer {
      */
     public OtlpStepTimer(Id id, Clock clock, DistributionStatisticConfig distributionStatisticConfig,
             PauseDetector pauseDetector, TimeUnit baseTimeUnit, long stepDurationMillis) {
-        super(id, clock, pauseDetector, baseTimeUnit, OtlpMeterRegistry.getHistogram(clock, distributionStatisticConfig,
-                AggregationTemporality.DELTA, stepDurationMillis));
-        countTotal = new OtlpStepTuple2<>(clock, stepDurationMillis, 0L, 0L, count::sumThenReset, total::sumThenReset);
+        super(id, clock, distributionStatisticConfig, pauseDetector, baseTimeUnit, stepDurationMillis, OtlpMeterRegistry
+            .getHistogram(clock, distributionStatisticConfig, AggregationTemporality.DELTA, stepDurationMillis));
         max = new StepMax(clock, stepDurationMillis);
     }
 
     @Override
     protected void recordNonNegative(final long amount, final TimeUnit unit) {
+        super.recordNonNegative(amount, unit);
+        // double work
         final long nanoAmount = (long) TimeUtils.convert(amount, unit, TimeUnit.NANOSECONDS);
-        count.add(1);
-        total.add(nanoAmount);
         max.record(nanoAmount);
-    }
-
-    @Override
-    public long count() {
-        return countTotal.poll1();
-    }
-
-    @Override
-    public double totalTime(final TimeUnit unit) {
-        return TimeUtils.nanosToUnit(countTotal.poll2(), unit);
     }
 
     @Override
@@ -74,18 +56,10 @@ class OtlpStepTimer extends AbstractTimer {
         return TimeUtils.nanosToUnit(max.poll(), unit);
     }
 
-    /**
-     * This is an internal method not meant for general use.
-     * <p>
-     * Force a rollover of the values returned by a step meter and never roll over again
-     * after. See: {@code StepMeter} and {@code StepTimer}
-     */
-    void _closingRollover() {
-        countTotal._closingRollover();
+    @Override
+    public void _closingRollover() {
+        super._closingRollover();
         max._closingRollover();
-        if (histogram instanceof OtlpStepBucketHistogram) { // can be noop
-            ((OtlpStepBucketHistogram) histogram)._closingRollover();
-        }
     }
 
 }
