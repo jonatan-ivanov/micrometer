@@ -205,25 +205,6 @@ public class OtlpMeterRegistry extends StepMeterRegistry {
             .merge(DistributionStatisticConfig.DEFAULT);
     }
 
-    @Override
-    public void close() {
-        stop();
-        if (!isPublishing() && isDelta()) {
-            getMeters().forEach(this::closingRollover);
-        }
-        super.close();
-    }
-
-    // Either we do this or make StepMeter public
-    private void closingRollover(Meter meter) {
-        if (meter instanceof OtlpStepTimer) {
-            ((OtlpStepTimer) meter)._closingRollover();
-        }
-        if (meter instanceof OtlpStepDistributionSummary) {
-            ((OtlpStepDistributionSummary) meter)._closingRollover();
-        }
-    }
-
     // VisibleForTesting
     Metric writeMeter(Meter meter) {
         // TODO support writing custom meters
@@ -446,7 +427,7 @@ public class OtlpMeterRegistry extends StepMeterRegistry {
                     .merge(distributionStatisticConfig), true, false);
             }
             else if (AggregationTemporality.isDelta(aggregationTemporality) && stepMillis > 0) {
-                return new OtlpStepBucketHistogram(clock, stepMillis, distributionStatisticConfig, true, false);
+                return new StepBucketHistogram(clock, stepMillis, distributionStatisticConfig, true, false);
             }
         }
 

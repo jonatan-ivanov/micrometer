@@ -79,7 +79,7 @@ public class StepTuple2<T1, T2> {
      * Rolls the values regardless of the clock or current time and ensures the value will
      * never roll over again after.
      */
-    protected void _closingRollover() {
+    public void _closingRollover() {
         // ensure rollover does not happen again
         lastInitPos.set(Long.MAX_VALUE);
         t1Previous = t1Supplier.get();

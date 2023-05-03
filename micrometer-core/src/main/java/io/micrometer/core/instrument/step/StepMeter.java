@@ -16,9 +16,9 @@
 package io.micrometer.core.instrument.step;
 
 /**
- * Internal. Intentionally package-private.
+ * Internal, do not use it.
  */
-interface StepMeter {
+public interface StepMeter {
 
     /**
      * This is an internal method not meant for general use.

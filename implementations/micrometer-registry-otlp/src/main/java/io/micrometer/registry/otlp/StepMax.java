@@ -49,9 +49,4 @@ class StepMax extends StepValue<Double> {
         current.accumulate(value);
     }
 
-    @Override
-    protected void _closingRollover() {
-        super._closingRollover();
-    }
-
 }

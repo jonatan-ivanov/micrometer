@@ -85,7 +85,7 @@ public abstract class StepValue<V> {
      * Rolls the values regardless of the clock or current time and ensures the value will
      * never roll over again after.
      */
-    protected void _closingRollover() {
+    public void _closingRollover() {
         // make sure value does not roll over again if passing a step boundary
         lastInitPos.set(Long.MAX_VALUE);
         previous = valueSupplier().get();

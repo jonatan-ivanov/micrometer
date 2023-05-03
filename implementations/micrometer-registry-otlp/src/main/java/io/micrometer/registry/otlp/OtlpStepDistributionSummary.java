@@ -18,17 +18,20 @@ package io.micrometer.registry.otlp;
 import io.micrometer.core.instrument.AbstractDistributionSummary;
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
+import io.micrometer.core.instrument.distribution.StepBucketHistogram;
+import io.micrometer.core.instrument.step.StepMeter;
+import io.micrometer.core.instrument.step.StepTuple2;
 
 import java.util.concurrent.atomic.DoubleAdder;
 import java.util.concurrent.atomic.LongAdder;
 
-class OtlpStepDistributionSummary extends AbstractDistributionSummary {
+class OtlpStepDistributionSummary extends AbstractDistributionSummary implements StepMeter {
 
     private final LongAdder count = new LongAdder();
 
     private final DoubleAdder total = new DoubleAdder();
 
-    private final OtlpStepTuple2<Long, Double> countTotal;
+    private final StepTuple2<Long, Double> countTotal;
 
     private final StepMax max;
 
@@ -44,7 +47,7 @@ class OtlpStepDistributionSummary extends AbstractDistributionSummary {
             double scale, long stepMillis) {
         super(id, scale, OtlpMeterRegistry.getHistogram(clock, distributionStatisticConfig,
                 AggregationTemporality.DELTA, stepMillis));
-        this.countTotal = new OtlpStepTuple2<>(clock, stepMillis, 0L, 0.0, count::sumThenReset, total::sumThenReset);
+        this.countTotal = new StepTuple2<>(clock, stepMillis, 0L, 0.0, count::sumThenReset, total::sumThenReset);
         this.max = new StepMax(clock, stepMillis);
     }
 
@@ -76,11 +79,12 @@ class OtlpStepDistributionSummary extends AbstractDistributionSummary {
      * Force a rollover of the values returned by a step meter and never roll over again
      * after. See: {@code StepMeter} and {@code StepDistributionSummary}
      */
-    void _closingRollover() {
+    @Override
+    public void _closingRollover() {
         countTotal._closingRollover();
         max._closingRollover();
-        if (histogram instanceof OtlpStepBucketHistogram) { // can be noop
-            ((OtlpStepBucketHistogram) histogram)._closingRollover();
+        if (histogram instanceof StepBucketHistogram) { // can be noop
+            ((StepBucketHistogram) histogram)._closingRollover();
         }
     }
 
