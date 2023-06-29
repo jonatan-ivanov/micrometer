@@ -42,9 +42,7 @@ import static uk.org.webcompere.systemstubs.SystemStubs.withEnvironmentVariables
 @Tag("docker")
 class OTelCollectorIntegrationTest {
 
-    // TODO: The OTel Prometheus exporter does not support openmetrics-text 1.0.0 yet
-    // see: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/18913
-    private static final String OPENMETRICS_001 = "application/openmetrics-text; version=0.0.1; charset=utf-8";
+    private static final String OPENMETRICS_001 = "application/openmetrics-text; version=1.0.0; charset=utf-8";
 
     private static final String CONFIG_FILE_NAME = "collector-config.yml";
 
@@ -91,16 +89,18 @@ class OTelCollectorIntegrationTest {
         whenPrometheusScraped().then().body(
             containsString("{job=\"test\",service_name=\"test\",telemetry_sdk_language=\"java\",telemetry_sdk_name=\"io.micrometer\""),
 
-            matchesPattern("(?s)^.*test_counter_total\\{.+} 42\\.0\\n.*$"),
+            matchesPattern("(?s)^.*test_counter\\{.+} 42\\.0\\n.*$"),
             matchesPattern("(?s)^.*test_gauge\\{.+} 12\\.0\\n.*$"),
 
-            matchesPattern("(?s)^.*test_timer_milliseconds_count\\{.+} 1\\n.*$"),
-            // TODO: Earlier this was 123s (123), should have been 123ms (0.123)
+            matchesPattern("(?s)^.*test_timer_count\\{.+} 1\\n.*$"),
+            // TODO: 123s (123) is wrong, it should be 123ms (0.123)
             // see: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/18903
-            // it seems units are still not converted but at least the unit is in the name now (breaking change)
+            // In 0.0.79 (collector version) units were added in the name but still not converted (breaking change)
             // see: https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/20519
-            matchesPattern("(?s)^.*test_timer_milliseconds_sum\\{.+} 123\\.0\\n.*$"),
-            matchesPattern("(?s)^.*test_timer_milliseconds_bucket\\{.+,le=\"\\+Inf\"} 1\\n.*$"),
+            // Then in 0.80.0, this change was reverted so units are missing again (another breaking change)
+            // see: https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/23229
+            matchesPattern("(?s)^.*test_timer_sum\\{.+} 123\\.0\\n.*$"),
+            matchesPattern("(?s)^.*test_timer_bucket\\{.+,le=\"\\+Inf\"} 1\\n.*$"),
 
             matchesPattern("(?s)^.*test_distributionsummary_count\\{.+} 1\\n.*$"),
             matchesPattern("(?s)^.*test_distributionsummary_sum\\{.+} 24\\.0\\n.*$"),
