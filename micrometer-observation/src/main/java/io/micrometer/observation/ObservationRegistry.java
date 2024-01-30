@@ -102,6 +102,8 @@ public interface ObservationRegistry {
 
         private final List<ObservationFilter> observationFilters = new CopyOnWriteArrayList<>();
 
+        private final List<ObservedValueRegistrar> observedValueRegistrars = new CopyOnWriteArrayList<>();
+
         /**
          * Register a handler for the {@link Observation observations}.
          * @param handler handler to add to the current configuration
@@ -146,6 +148,11 @@ public interface ObservationRegistry {
          */
         public ObservationConfig observationConvention(GlobalObservationConvention<?> observationConvention) {
             this.observationConventions.add(observationConvention);
+            return this;
+        }
+
+        public ObservationConfig observedValueRegistrar(ObservedValueRegistrar observedValueRegistrar) {
+            this.observedValueRegistrars.add(observedValueRegistrar);
             return this;
         }
 
@@ -195,6 +202,10 @@ public interface ObservationRegistry {
 
         Collection<ObservationConvention<?>> getObservationConventions() {
             return observationConventions;
+        }
+
+        Collection<ObservedValueRegistrar> getObservedValueRegistrars() {
+            return observedValueRegistrars;
         }
 
     }
