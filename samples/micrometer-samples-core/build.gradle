@@ -15,6 +15,14 @@ dependencies {
         implementation project(":micrometer-registry-$sys")
     }
 
+    implementation('io.prometheus:prometheus-metrics-core:1.1.0') {
+        // TODO: this brings in haf the universe figure out what is needed for exemplars
+        exclude(group: 'io.prometheus', module: 'prometheus-metrics-tracer-initializer')
+    }
+    implementation 'io.prometheus:prometheus-metrics-exposition-formats:1.1.0'
+    implementation 'io.prometheus:prometheus-metrics-simpleclient-bridge:1.1.0'
+
+
     implementation 'io.prometheus:simpleclient_pushgateway'
     implementation 'io.projectreactor.netty:reactor-netty-http'
     implementation 'org.apache.kafka:kafka-clients'
