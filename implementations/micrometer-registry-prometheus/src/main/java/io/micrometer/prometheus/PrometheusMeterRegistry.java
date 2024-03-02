@@ -29,12 +29,16 @@ import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.exemplars.Exemplar;
 import io.prometheus.client.exemplars.ExemplarSampler;
 import io.prometheus.client.exporter.common.TextFormat;
+import io.prometheus.metrics.expositionformats.ExpositionFormats;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
+import io.prometheus.metrics.model.snapshots.MetricSnapshots;
+import io.prometheus.metrics.simpleclient.bridge.SimpleclientCollector;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.StringWriter;
+import java.io.OutputStream;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -56,9 +60,13 @@ import static java.util.stream.StreamSupport.stream;
  */
 public class PrometheusMeterRegistry extends MeterRegistry {
 
+    private static final ExpositionFormats EXPOSITION_FORMATS = ExpositionFormats.init();
+
     private final PrometheusConfig prometheusConfig;
 
-    private final CollectorRegistry registry;
+    private final CollectorRegistry collectorRegistry;
+
+    private final PrometheusRegistry prometheusRegistry;
 
     private final ConcurrentMap<String, MicrometerCollector> collectorMap = new ConcurrentHashMap<>();
 
@@ -69,27 +77,54 @@ public class PrometheusMeterRegistry extends MeterRegistry {
         this(config, new CollectorRegistry(), Clock.SYSTEM);
     }
 
-    public PrometheusMeterRegistry(PrometheusConfig config, CollectorRegistry registry, Clock clock) {
-        this(config, registry, clock, null);
+    public PrometheusMeterRegistry(PrometheusConfig config, CollectorRegistry collectorRegistry, Clock clock) {
+        this(config, collectorRegistry, clock, null);
     }
 
     /**
      * Create a {@code PrometheusMeterRegistry} instance.
      * @param config configuration
-     * @param registry collector registry
+     * @param prometheusRegistry prometheus registry
+     * @param clock clock
+     * @since 1.13.0
+     */
+    public PrometheusMeterRegistry(PrometheusConfig config, PrometheusRegistry prometheusRegistry, Clock clock) {
+        this(config, new CollectorRegistry(), prometheusRegistry, clock, null);
+    }
+
+    /**
+     * Create a {@code PrometheusMeterRegistry} instance.
+     * @param config configuration
+     * @param collectorRegistry collector registry
      * @param clock clock
      * @param exemplarSampler exemplar sampler
      * @since 1.9.0
      */
-    public PrometheusMeterRegistry(PrometheusConfig config, CollectorRegistry registry, Clock clock,
+    public PrometheusMeterRegistry(PrometheusConfig config, CollectorRegistry collectorRegistry, Clock clock,
             @Nullable ExemplarSampler exemplarSampler) {
+        this(config, collectorRegistry, new PrometheusRegistry(), clock, exemplarSampler);
+    }
+
+    /**
+     * Create a {@code PrometheusMeterRegistry} instance.
+     * @param config configuration
+     * @param collectorRegistry collector registry
+     * @param prometheusRegistry prometheus registry
+     * @param clock clock
+     * @param exemplarSampler exemplar sampler
+     * @since 1.13.0
+     */
+    public PrometheusMeterRegistry(PrometheusConfig config, CollectorRegistry collectorRegistry,
+            PrometheusRegistry prometheusRegistry, Clock clock, @Nullable ExemplarSampler exemplarSampler) {
         super(clock);
 
         config.requireValid();
 
         this.prometheusConfig = config;
-        this.registry = registry;
+        this.collectorRegistry = collectorRegistry;
+        this.prometheusRegistry = prometheusRegistry;
         this.exemplarSampler = exemplarSampler;
+        SimpleclientCollector.builder().collectorRegistry(collectorRegistry).register(prometheusRegistry);
 
         config().namingConvention(new PrometheusNamingConvention());
         config().onMeterRemoved(this::onMeterRemoved);
@@ -115,16 +150,15 @@ public class PrometheusMeterRegistry extends MeterRegistry {
      * @since 1.7.0
      */
     public String scrape(String contentType) {
-        Writer writer = new StringWriter();
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try {
-            scrape(writer, contentType);
+            scrape(outputStream, contentType);
         }
         catch (IOException e) {
-            // This actually never happens since StringWriter::write() doesn't throw any
-            // IOException
-            throw new RuntimeException(e);
+            return "";
         }
-        return writer.toString();
+
+        return outputStream.toString();
     }
 
     /**
@@ -138,6 +172,16 @@ public class PrometheusMeterRegistry extends MeterRegistry {
     }
 
     /**
+     * Scrape to the specified output stream in Prometheus text format.
+     * @param outputStream Target that serves the content to be scraped by Prometheus.
+     * @throws IOException if writing fails
+     * @since 1.13.0
+     */
+    public void scrape(OutputStream outputStream) throws IOException {
+        scrape(outputStream, TextFormat.CONTENT_TYPE_004);
+    }
+
+    /**
      * Write the metrics scrape body in a specific content type to the given writer.
      * @param writer where to write the scrape body
      * @param contentType the Content-Type of the scrape
@@ -146,12 +190,28 @@ public class PrometheusMeterRegistry extends MeterRegistry {
      * @since 1.7.0
      */
     public void scrape(Writer writer, String contentType) throws IOException {
-        scrape(writer, contentType, registry.metricFamilySamples());
+        scrape(writer, contentType, prometheusRegistry.scrape());
     }
 
-    private void scrape(Writer writer, String contentType, Enumeration<Collector.MetricFamilySamples> samples)
-            throws IOException {
-        TextFormat.writeFormat(contentType, writer, samples);
+    /**
+     * Write the metrics scrape body in a specific content type to the given output
+     * stream.
+     * @param outputStream where to write the scrape body
+     * @param contentType the Content-Type of the scrape
+     * @throws IOException if writing fails
+     * @see TextFormat
+     * @since 1.13.0
+     */
+    public void scrape(OutputStream outputStream, String contentType) throws IOException {
+        scrape(outputStream, contentType, prometheusRegistry.scrape());
+    }
+
+    private void scrape(Writer writer, String contentType, MetricSnapshots snapshots) throws IOException {
+        scrape(new WriterOutputStream(writer), contentType, snapshots);
+    }
+
+    private void scrape(OutputStream outputStream, String contentType, MetricSnapshots snapshots) throws IOException {
+        EXPOSITION_FORMATS.findWriter(contentType).write(outputStream, snapshots);
     }
 
     /**
@@ -164,16 +224,15 @@ public class PrometheusMeterRegistry extends MeterRegistry {
      * @since 1.7.0
      */
     public String scrape(String contentType, @Nullable Set<String> includedNames) {
-        Writer writer = new StringWriter();
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try {
-            scrape(writer, contentType, includedNames);
+            scrape(outputStream, contentType, includedNames);
         }
         catch (IOException e) {
-            // This actually never happens since StringWriter::write() doesn't throw any
-            // IOException
-            throw new RuntimeException(e);
+            return "";
         }
-        return writer.toString();
+
+        return outputStream.toString();
     }
 
     /**
@@ -186,9 +245,27 @@ public class PrometheusMeterRegistry extends MeterRegistry {
      * @since 1.7.0
      */
     public void scrape(Writer writer, String contentType, @Nullable Set<String> includedNames) throws IOException {
-        Enumeration<Collector.MetricFamilySamples> samples = includedNames != null
-                ? registry.filteredMetricFamilySamples(includedNames) : registry.metricFamilySamples();
-        scrape(writer, contentType, samples);
+        MetricSnapshots snapshots = includedNames != null ? prometheusRegistry.scrape(includedNames::contains)
+                : prometheusRegistry.scrape();
+
+        scrape(writer, contentType, snapshots);
+    }
+
+    /**
+     * Scrape to the specified outputStream.
+     * @param outputStream Target that serves the content to be scraped by Prometheus.
+     * @param contentType the Content-Type of the scrape.
+     * @param includedNames Sample names to be included. All samples will be included if
+     * {@code null}.
+     * @throws IOException if writing fails
+     * @since 1.13.0
+     */
+    public void scrape(OutputStream outputStream, String contentType, @Nullable Set<String> includedNames)
+            throws IOException {
+        MetricSnapshots snapshots = includedNames != null ? prometheusRegistry.scrape(includedNames::contains)
+                : prometheusRegistry.scrape();
+
+        scrape(outputStream, contentType, snapshots);
     }
 
     @Override
@@ -443,7 +520,11 @@ public class PrometheusMeterRegistry extends MeterRegistry {
      * @return The underlying Prometheus {@link CollectorRegistry}.
      */
     public CollectorRegistry getPrometheusRegistry() {
-        return registry;
+        return collectorRegistry;
+    }
+
+    public PrometheusRegistry getPrometheus1xRegistry() {
+        return prometheusRegistry;
     }
 
     private void addDistributionStatisticSamples(DistributionStatisticConfig distributionStatisticConfig,
@@ -578,7 +659,7 @@ public class PrometheusMeterRegistry extends MeterRegistry {
                 MicrometerCollector micrometerCollector = new MicrometerCollector(name, id, config().namingConvention(),
                         prometheusConfig);
                 consumer.accept(micrometerCollector);
-                return micrometerCollector.register(registry);
+                return micrometerCollector.register(collectorRegistry);
             }
 
             List<String> tagKeys = getConventionTags(id).stream().map(Tag::getKey).collect(toList());
