@@ -18,12 +18,7 @@ package io.micrometer.core.samples;
 import io.micrometer.common.KeyValues;
 import io.micrometer.core.instrument.observation.DefaultMeterObservationHandler;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import io.micrometer.observation.Observation;
-import io.micrometer.observation.ObservationPredicate;
-import io.micrometer.observation.ObservationRegistry;
-import io.micrometer.observation.ObservationTextPublisher;
-import io.micrometer.observation.GlobalObservationConvention;
-import io.micrometer.observation.ObservationConvention;
+import io.micrometer.observation.*;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -38,6 +33,7 @@ public class ObservationHandlerSample {
     public static void main(String[] args) throws InterruptedException {
         observationRegistry.observationConfig()
             .observationHandler(new ObservationTextPublisher())
+            .observationHandler(new ObservationValidator())
             .observationHandler(new DefaultMeterObservationHandler(registry));
         observationRegistry.observationConfig()
             .observationConvention(new CustomObservationConvention())
@@ -66,6 +62,9 @@ public class ObservationHandlerSample {
         Observation.start("sample.no-context", observationRegistry).stop();
         Observation.start("sample.unsupported", UnsupportedContext::new, observationRegistry).stop();
         Observation.start("sample.ignored", CustomContext::new, observationRegistry).stop();
+        Observation invalid = Observation.start("sample.invalid", observationRegistry);
+        invalid.stop();
+        invalid.stop(); // stopping twice to trigger a validation event
 
         System.out.println("--- Meters:");
         System.out.println(registry.getMetersAsString());
