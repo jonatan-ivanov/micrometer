@@ -88,6 +88,9 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
 
     private final TimeUnit baseTimeUnit;
 
+    @Nullable
+    private final ExemplarContextProvider exemplarContextProvider;
+
     // Time when the last scheduled rollOver has started. Applicable only for delta
     // flavour.
     private volatile long lastMeterRolloverStartTime = -1;
@@ -111,17 +114,18 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
      * @since 1.14.0
      */
     public OtlpMeterRegistry(OtlpConfig config, Clock clock, ThreadFactory threadFactory) {
-        this(config, clock, threadFactory, new OtlpHttpMetricsSender(new HttpUrlConnectionSender()));
+        this(config, clock, threadFactory, new OtlpHttpMetricsSender(new HttpUrlConnectionSender()), null);
     }
 
     private OtlpMeterRegistry(OtlpConfig config, Clock clock, ThreadFactory threadFactory,
-            OtlpMetricsSender metricsSender) {
+            OtlpMetricsSender metricsSender, @Nullable ExemplarContextProvider exemplarContextProvider) {
         super(config, clock);
         this.config = config;
         this.baseTimeUnit = config.baseTimeUnit();
         this.metricsSender = metricsSender;
         this.resource = Resource.newBuilder().addAllAttributes(getResourceAttributes()).build();
         this.aggregationTemporality = config.aggregationTemporality();
+        this.exemplarContextProvider = exemplarContextProvider;
         config().namingConvention(NamingConvention.dot);
         start(threadFactory);
     }
@@ -181,6 +185,8 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
                         .build())
                     .build();
 
+                System.out.println("Publishing...");
+                System.out.println(request);
                 metricsSender.send(OtlpMetricsSender.Request.builder(request.toByteArray())
                     .address(config.url())
                     .headers(config.headers())
@@ -210,8 +216,10 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
 
     @Override
     protected Counter newCounter(Meter.Id id) {
-        return isCumulative() ? new OtlpCumulativeCounter(id, this.clock)
-                : new StepCounter(id, this.clock, config.step().toMillis());
+        ExemplarSampler exemplarSampler = exemplarContextProvider != null
+                ? new OtlpExemplarSampler(exemplarContextProvider, clock) : null;
+        return isCumulative() ? new OtlpCumulativeCounter(id, this.clock, exemplarSampler)
+                : new OtlpStepCounter(id, this.clock, config.step().toMillis(), exemplarSampler);
     }
 
     @Override
@@ -512,6 +520,9 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
 
         private OtlpMetricsSender metricsSender;
 
+        @Nullable
+        private ExemplarContextProvider exemplarContextProvider;
+
         private Builder(OtlpConfig otlpConfig) {
             this.otlpConfig = otlpConfig;
             this.metricsSender = new OtlpHttpMetricsSender(new HttpUrlConnectionSender());
@@ -540,8 +551,13 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
             return this;
         }
 
+        public Builder exemplarContextProvider(ExemplarContextProvider exemplarContextProvider) {
+            this.exemplarContextProvider = exemplarContextProvider;
+            return this;
+        }
+
         public OtlpMeterRegistry build() {
-            return new OtlpMeterRegistry(otlpConfig, clock, threadFactory, metricsSender);
+            return new OtlpMeterRegistry(otlpConfig, clock, threadFactory, metricsSender, exemplarContextProvider);
         }
 
     }

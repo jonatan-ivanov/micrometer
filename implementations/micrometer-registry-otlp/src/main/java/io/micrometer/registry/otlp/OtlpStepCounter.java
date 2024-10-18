@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 VMware, Inc.
+ * Copyright 2025 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,23 +17,19 @@ package io.micrometer.registry.otlp;
 
 import io.micrometer.common.lang.Nullable;
 import io.micrometer.core.instrument.Clock;
-import io.micrometer.core.instrument.cumulative.CumulativeCounter;
+import io.micrometer.core.instrument.step.StepCounter;
 import io.opentelemetry.proto.metrics.v1.Exemplar;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
-class OtlpCumulativeCounter extends CumulativeCounter implements StartTimeAwareMeter, OtlpCounter {
-
-    private final long startTimeNanos;
+class OtlpStepCounter extends StepCounter implements OtlpCounter {
 
     @Nullable
     private final ExemplarSampler exemplarSampler;
 
-    OtlpCumulativeCounter(Id id, Clock clock, @Nullable ExemplarSampler exemplarSampler) {
-        super(id);
-        this.startTimeNanos = TimeUnit.MILLISECONDS.toNanos(clock.wallTime());
+    OtlpStepCounter(Id id, Clock clock, long stepMillis, @Nullable ExemplarSampler exemplarSampler) {
+        super(id, clock, stepMillis);
         this.exemplarSampler = exemplarSampler;
     }
 
@@ -43,11 +39,6 @@ class OtlpCumulativeCounter extends CumulativeCounter implements StartTimeAwareM
         if (exemplarSampler != null) {
             exemplarSampler.sampleMeasurement(amount);
         }
-    }
-
-    @Override
-    public long getStartTimeNanos() {
-        return this.startTimeNanos;
     }
 
     @Override

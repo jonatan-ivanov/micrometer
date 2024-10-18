@@ -84,6 +84,8 @@ class OTelCollectorIntegrationTest {
                     .body(endsWith("# EOF\n"), not(startsWith("# EOF\n")))
             );
 
+        System.out.println(whenPrometheusScraped().body().asString());
+
         // tags can vary depending on where you run your tests:
         //  - IDE: no telemetry_sdk_version tag
         //  - Gradle: telemetry_sdk_version has the version number
@@ -92,7 +94,7 @@ class OTelCollectorIntegrationTest {
 
             containsString("# HELP test_counter \n"),
             containsString("# TYPE test_counter counter\n"),
-            matchesPattern("(?s)^.*test_counter_total\\{.+} 42\\.0\\n.*$"),
+            matchesPattern("(?s)^.*test_counter_total\\{.+} 42\\.0 # \\{trace_id=\"66fd7359621b3043e232148ef0c4c566\",span_id=\"e232148ef0c4c566\"} 42\\.0 1\\.\\d+e\\+09\\n.*$"),
 
             containsString("# HELP test_gauge \n"),
             containsString("# TYPE test_gauge gauge\n"),
@@ -119,7 +121,9 @@ class OTelCollectorIntegrationTest {
 
     private OtlpMeterRegistry createOtlpMeterRegistryForContainer(GenericContainer<?> container) throws Exception {
         return withEnvironmentVariables("OTEL_SERVICE_NAME", "test")
-            .execute(() -> new OtlpMeterRegistry(createOtlpConfigForContainer(container), Clock.SYSTEM));
+            .execute(() -> OtlpMeterRegistry.builder(createOtlpConfigForContainer(container))
+                .exemplarContextProvider(new TestExemplarContextProvider())
+                .build());
     }
 
     private OtlpConfig createOtlpConfigForContainer(GenericContainer<?> container) {
@@ -149,6 +153,15 @@ class OTelCollectorIntegrationTest {
             .when()
             .get("/metrics");
         // @formatter:on
+    }
+
+    static class TestExemplarContextProvider implements ExemplarContextProvider {
+
+        @Override
+        public OtlpExemplarContext getExemplarContext() {
+            return new OtlpExemplarContext("66fd7359621b3043e232148ef0c4c566", "e232148ef0c4c566");
+        }
+
     }
 
 }
