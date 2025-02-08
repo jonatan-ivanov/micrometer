@@ -33,10 +33,22 @@ dependencies {
     jmhAnnotationProcessor libs.jmhAnnotationProcessor
 }
 
+String jmhIncludes = findProperty('jmhIncludes')
 jmh {
     fork = 1
     warmupIterations = 1
     iterations = 1
+    // benchmarkMode = ['SampleTime']
+    // timeUnit = 'us'
     duplicateClassesStrategy = DuplicatesStrategy.EXCLUDE
     zip64 = true
+
+    // ./gradlew :micrometer-benchmarks-core:jmh -PjmhIncludes=io.micrometer.benchmark.core.CounterBenchmark
+    if (jmhIncludes != null) {
+        includes = [jmhIncludes]
+    }
+}
+
+tasks.named('jmh') {
+    outputs.upToDateWhen { false }
 }
