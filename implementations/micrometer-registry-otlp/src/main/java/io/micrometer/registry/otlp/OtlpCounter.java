@@ -24,4 +24,9 @@ interface OtlpCounter extends Counter {
 
     List<Exemplar> exemplars();
 
+    default void rollOver() {
+        this.count();
+        this.exemplars();
+    }
+
 }

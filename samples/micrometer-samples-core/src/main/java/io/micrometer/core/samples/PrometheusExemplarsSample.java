@@ -17,14 +17,11 @@ package io.micrometer.core.samples;
 
 import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.DistributionSummary;
-import io.micrometer.core.instrument.Timer;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import io.prometheus.metrics.tracer.common.SpanContext;
 
-import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static io.prometheus.client.exporter.common.TextFormat.CONTENT_TYPE_OPENMETRICS_100;
@@ -36,25 +33,9 @@ public class PrometheusExemplarsSample {
 
     public static void main(String[] args) throws InterruptedException {
         Counter counter = registry.counter("test.counter");
-        counter.increment();
-
-        Timer timer = Timer.builder("test.timer").publishPercentileHistogram().register(registry);
-        timer.record(Duration.ofNanos(1_000 * 100));
-        sleepToAvoidRateLimiting();
-        timer.record(Duration.ofMillis(2));
-        sleepToAvoidRateLimiting();
-        timer.record(Duration.ofMillis(100));
-        sleepToAvoidRateLimiting();
-        timer.record(Duration.ofSeconds(60));
-
-        DistributionSummary distributionSummary = DistributionSummary.builder("test.distribution")
-            .publishPercentileHistogram()
-            .register(registry);
-        distributionSummary.record(0.15);
-        sleepToAvoidRateLimiting();
-        distributionSummary.record(15);
-        sleepToAvoidRateLimiting();
-        distributionSummary.record(5E18);
+        for (int i = 0; i < 20; i++) {
+            counter.increment();
+        }
 
         System.out.println(registry.scrape(CONTENT_TYPE_OPENMETRICS_100));
     }

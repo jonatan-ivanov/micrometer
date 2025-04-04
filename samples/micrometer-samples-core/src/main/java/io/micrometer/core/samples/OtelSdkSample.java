@@ -47,14 +47,9 @@ public class OtelSdkSample {
             .build();
 
         for (int i = 0; i < 20; i++) {
-            Span span = tracer.spanBuilder("test.span").startSpan();
-            try (Scope ignored = span.makeCurrent()) {
-                meter.counterBuilder("test.counter").build().add(1);
-            }
-            finally {
-                span.end();
-            }
+            scoped(tracer, () -> meter.counterBuilder("test.counter").build().add(1));
         }
+        scoped(tracer, () -> meter.counterBuilder("test.counter").build().add(1));
 
         // LongHistogram histogram = meter.histogramBuilder("dice-lib.rolls")
         // .ofLongs() // Required to get a LongHistogram, default is DoubleHistogram
@@ -65,6 +60,19 @@ public class OtelSdkSample {
         // histogram.record(7);
 
         openTelemetrySdk.close();
+    }
+
+    private static void scoped(Tracer tracer, Runnable runnable) {
+        Span span = tracer.spanBuilder("test.span").startSpan();
+        try (Scope ignored = span.makeCurrent()) {
+            runnable.run();
+        }
+        catch (Throwable throwable) {
+            span.recordException(throwable);
+        }
+        finally {
+            span.end();
+        }
     }
 
 }

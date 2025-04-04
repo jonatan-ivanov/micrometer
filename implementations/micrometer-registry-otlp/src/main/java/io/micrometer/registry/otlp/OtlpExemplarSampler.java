@@ -16,13 +16,21 @@
 package io.micrometer.registry.otlp;
 
 import com.google.protobuf.ByteString;
-import io.micrometer.common.lang.Nullable;
 import io.micrometer.core.instrument.Clock;
+import io.micrometer.core.instrument.step.StepValue;
+import io.opentelemetry.proto.common.v1.AnyValue;
+import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.Exemplar;
 
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Supplier;
 
 class OtlpExemplarSampler implements ExemplarSampler {
 
@@ -30,23 +38,32 @@ class OtlpExemplarSampler implements ExemplarSampler {
 
     private final Clock clock;
 
-    @Nullable
-    private volatile Exemplar lastExemplar;
+    private final Exemplars exemplars;
 
-    OtlpExemplarSampler(ExemplarContextProvider exemplarContextProvider, Clock clock) {
+    private final AtomicBoolean acceptingNewExemplars = new AtomicBoolean(true);
+
+    OtlpExemplarSampler(ExemplarContextProvider exemplarContextProvider, Clock clock, long stepMillis) {
         this.exemplarContextProvider = exemplarContextProvider;
         this.clock = clock;
+        this.exemplars = new Exemplars(clock, stepMillis, 5);
     }
 
     @Override
     public void sampleMeasurement(double measurement) {
-        OtlpExemplarContext exemplarContext = exemplarContextProvider.getExemplarContext();
-        lastExemplar = exemplarContext != null ? createExemplar(measurement, exemplarContext) : null;
+        if (acceptingNewExemplars.get()) {
+            OtlpExemplarContext exemplarContext = exemplarContextProvider.getExemplarContext();
+            if (exemplarContext != null) {
+                System.out.println(String.format("%s: %s-%s", Instant.now(), exemplarContext.getTraceId(),
+                        exemplarContext.getSpanId()));
+                exemplars.offer(() -> createExemplar(measurement, exemplarContext));
+            }
+        }
     }
 
     @Override
     public List<Exemplar> collectExemplars() {
-        return lastExemplar != null ? Collections.singletonList(lastExemplar) : Collections.emptyList();
+        System.out.println("collectExemplars");
+        return exemplars.collect();
     }
 
     private Exemplar createExemplar(double measurement, OtlpExemplarContext exemplarContext) {
@@ -54,8 +71,66 @@ class OtlpExemplarSampler implements ExemplarSampler {
             .setAsDouble(measurement)
             .setSpanId(ByteString.fromHex(exemplarContext.getSpanId()))
             .setTraceId(ByteString.fromHex(exemplarContext.getTraceId()))
+            .addFilteredAttributes(KeyValue.newBuilder()
+                .setKey("originalSpanId")
+                .setValue(AnyValue.newBuilder().setStringValue(exemplarContext.getSpanId()))
+                .build())
+            .addFilteredAttributes(KeyValue.newBuilder()
+                .setKey("originalTraceId")
+                .setValue(AnyValue.newBuilder().setStringValue(exemplarContext.getTraceId()))
+                .build())
             .setTimeUnixNano(TimeUnit.MILLISECONDS.toNanos(clock.wallTime()))
             .build();
+    }
+
+    private static class Exemplars extends StepValue<Exemplar[]> {
+
+        private static final Exemplar[] EMPTY = new Exemplar[0];
+
+        private Exemplar[] exemplars;
+
+        private final LongAdder offeredExemplars;
+
+        private Exemplars(Clock clock, long stepMillis, int size) {
+            this(clock, stepMillis, new Exemplar[size]);
+        }
+
+        private Exemplars(Clock clock, long stepMillis, Exemplar[] initValue) {
+            super(clock, stepMillis, initValue);
+            this.exemplars = initValue;
+            this.offeredExemplars = new LongAdder();
+        }
+
+        @Override
+        protected Supplier<Exemplar[]> valueSupplier() {
+            return () -> {
+                Exemplar[] result = exemplars;
+                exemplars = new Exemplar[exemplars.length];
+                offeredExemplars.reset();
+                return result;
+            };
+        }
+
+        @Override
+        protected Exemplar[] noValue() {
+            return EMPTY;
+        }
+
+        private List<Exemplar> collect() {
+            List<Exemplar> exemplars = new ArrayList<>(Arrays.asList(this.poll()));
+            exemplars.removeAll(Collections.singletonList(null));
+            return Collections.unmodifiableList(exemplars);
+        }
+
+        private void offer(Supplier<Exemplar> exemplarSupplier) {
+            // OTel does something like this
+            offeredExemplars.increment();
+            int index = (int) (Math.random() * offeredExemplars.sum());
+            if (index < exemplars.length) {
+                exemplars[index] = exemplarSupplier.get();
+            }
+        }
+
     }
 
 }

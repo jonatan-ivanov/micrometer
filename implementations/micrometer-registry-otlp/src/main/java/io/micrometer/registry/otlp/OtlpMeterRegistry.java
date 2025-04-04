@@ -217,7 +217,7 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
     @Override
     protected Counter newCounter(Meter.Id id) {
         ExemplarSampler exemplarSampler = exemplarContextProvider != null
-                ? new OtlpExemplarSampler(exemplarContextProvider, clock) : null;
+                ? new OtlpExemplarSampler(exemplarContextProvider, clock, config.step().toMillis()) : null;
         return isCumulative() ? new OtlpCumulativeCounter(id, this.clock, exemplarSampler)
                 : new OtlpStepCounter(id, this.clock, config.step().toMillis(), exemplarSampler);
     }
@@ -347,9 +347,11 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
     // VisibleForTesting
     void pollMetersToRollover() {
         this.lastMeterRolloverStartTime = clock.wallTime();
-        this.getMeters()
-            .forEach(m -> m.match(gauge -> null, Counter::count, Timer::takeSnapshot, DistributionSummary::takeSnapshot,
-                    meter -> null, meter -> null, FunctionCounter::count, FunctionTimer::count, meter -> null));
+        this.getMeters().forEach(m -> m.match(gauge -> null, counter -> {
+            ((OtlpCounter) counter).rollOver();
+            return 0.0;
+        }, Timer::takeSnapshot, DistributionSummary::takeSnapshot, meter -> null, meter -> null, FunctionCounter::count,
+                FunctionTimer::count, meter -> null));
     }
 
     private long getInitialDelay() {

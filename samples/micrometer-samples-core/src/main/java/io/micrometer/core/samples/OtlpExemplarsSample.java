@@ -16,26 +16,52 @@
 package io.micrometer.core.samples;
 
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.registry.otlp.ExemplarContextProvider;
-import io.micrometer.registry.otlp.OtlpConfig;
-import io.micrometer.registry.otlp.OtlpExemplarContext;
-import io.micrometer.registry.otlp.OtlpMeterRegistry;
+import io.micrometer.registry.otlp.*;
+
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class OtlpExemplarsSample {
 
-    public static void main(String[] args) {
-        MeterRegistry registry = OtlpMeterRegistry.builder(OtlpConfig.DEFAULT)
+    public static void main(String[] args) throws InterruptedException {
+        OtlpConfig config = new OtlpConfig() {
+            @Override
+            public Duration step() {
+                return Duration.ofSeconds(10);
+            }
+
+            @Override
+            public AggregationTemporality aggregationTemporality() {
+                return AggregationTemporality.DELTA;
+            }
+
+            @Override
+            public String get(String key) {
+                return null;
+            }
+        };
+
+        MeterRegistry registry = OtlpMeterRegistry.builder(config)
             .exemplarContextProvider(new TestExemplarContextProvider())
             .build();
-        registry.counter("test").increment(12);
+
+        for (int i = 0; i < 130; i++) {
+            System.out.print(i + 1 + " ");
+            registry.counter("test").increment();
+            Thread.sleep(1_000);
+        }
+
         registry.close();
     }
 
     static class TestExemplarContextProvider implements ExemplarContextProvider {
 
+        private final AtomicLong counter = new AtomicLong(1001);
+
         @Override
         public OtlpExemplarContext getExemplarContext() {
-            return new OtlpExemplarContext("66fd7359621b3043e232148ef0c4c566", "e232148ef0c4c566");
+            String suffix = String.valueOf(counter.getAndIncrement());
+            return new OtlpExemplarContext("66fd7359621b3043e2321480aaaa" + suffix, "e2321480aaaa" + suffix);
         }
 
     }
