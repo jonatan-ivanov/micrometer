@@ -34,6 +34,8 @@ import java.util.function.Supplier;
 
 class OtlpExemplarSampler implements ExemplarSampler {
 
+    private static final int DEFAULT_EXEMPLARS_SIZE = 16;
+
     private final ExemplarContextProvider exemplarContextProvider;
 
     private final Clock clock;
@@ -45,7 +47,7 @@ class OtlpExemplarSampler implements ExemplarSampler {
     OtlpExemplarSampler(ExemplarContextProvider exemplarContextProvider, Clock clock, long stepMillis) {
         this.exemplarContextProvider = exemplarContextProvider;
         this.clock = clock;
-        this.exemplars = new Exemplars(clock, stepMillis, 5);
+        this.exemplars = new Exemplars(clock, stepMillis, DEFAULT_EXEMPLARS_SIZE);
     }
 
     @Override
@@ -55,7 +57,7 @@ class OtlpExemplarSampler implements ExemplarSampler {
             if (exemplarContext != null) {
                 System.out.println(String.format("%s: %s-%s", Instant.now(), exemplarContext.getTraceId(),
                         exemplarContext.getSpanId()));
-                exemplars.offer(() -> createExemplar(measurement, exemplarContext));
+                exemplars.offer(measurement, exemplarContext, clock);
             }
         }
     }
@@ -64,23 +66,6 @@ class OtlpExemplarSampler implements ExemplarSampler {
     public List<Exemplar> collectExemplars() {
         System.out.println("collectExemplars");
         return exemplars.collect();
-    }
-
-    private Exemplar createExemplar(double measurement, OtlpExemplarContext exemplarContext) {
-        return Exemplar.newBuilder()
-            .setAsDouble(measurement)
-            .setSpanId(ByteString.fromHex(exemplarContext.getSpanId()))
-            .setTraceId(ByteString.fromHex(exemplarContext.getTraceId()))
-            .addFilteredAttributes(KeyValue.newBuilder()
-                .setKey("originalSpanId")
-                .setValue(AnyValue.newBuilder().setStringValue(exemplarContext.getSpanId()))
-                .build())
-            .addFilteredAttributes(KeyValue.newBuilder()
-                .setKey("originalTraceId")
-                .setValue(AnyValue.newBuilder().setStringValue(exemplarContext.getTraceId()))
-                .build())
-            .setTimeUnixNano(TimeUnit.MILLISECONDS.toNanos(clock.wallTime()))
-            .build();
     }
 
     private static class Exemplars extends StepValue<Exemplar[]> {
@@ -103,12 +88,14 @@ class OtlpExemplarSampler implements ExemplarSampler {
 
         @Override
         protected Supplier<Exemplar[]> valueSupplier() {
-            return () -> {
-                Exemplar[] result = exemplars;
-                exemplars = new Exemplar[exemplars.length];
-                offeredExemplars.reset();
-                return result;
-            };
+            return this::getExemplarsAndReset;
+        }
+
+        private Exemplar[] getExemplarsAndReset() {
+            Exemplar[] result = exemplars;
+            exemplars = new Exemplar[exemplars.length];
+            offeredExemplars.reset();
+            return result;
         }
 
         @Override
@@ -122,13 +109,30 @@ class OtlpExemplarSampler implements ExemplarSampler {
             return Collections.unmodifiableList(exemplars);
         }
 
-        private void offer(Supplier<Exemplar> exemplarSupplier) {
+        private void offer(double measurement, OtlpExemplarContext exemplarContext, Clock clock) {
             // OTel does something like this
             offeredExemplars.increment();
             int index = (int) (Math.random() * offeredExemplars.sum());
             if (index < exemplars.length) {
-                exemplars[index] = exemplarSupplier.get();
+                exemplars[index] = createExemplar(measurement, exemplarContext, clock);
             }
+        }
+
+        private static Exemplar createExemplar(double measurement, OtlpExemplarContext exemplarContext, Clock clock) {
+            return Exemplar.newBuilder()
+                .setAsDouble(measurement)
+                .setSpanId(ByteString.fromHex(exemplarContext.getSpanId()))
+                .setTraceId(ByteString.fromHex(exemplarContext.getTraceId()))
+                .addFilteredAttributes(KeyValue.newBuilder()
+                    .setKey("originalSpanId")
+                    .setValue(AnyValue.newBuilder().setStringValue(exemplarContext.getSpanId()))
+                    .build())
+                .addFilteredAttributes(KeyValue.newBuilder()
+                    .setKey("originalTraceId")
+                    .setValue(AnyValue.newBuilder().setStringValue(exemplarContext.getTraceId()))
+                    .build())
+                .setTimeUnixNano(TimeUnit.MILLISECONDS.toNanos(clock.wallTime()))
+                .build();
         }
 
     }
