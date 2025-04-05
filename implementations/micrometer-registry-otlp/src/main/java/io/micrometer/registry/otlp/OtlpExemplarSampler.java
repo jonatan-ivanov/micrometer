@@ -92,6 +92,7 @@ class OtlpExemplarSampler implements ExemplarSampler {
         }
 
         private Exemplar[] getExemplarsAndReset() {
+            System.out.println("getExemplarsAndReset");
             Exemplar[] result = exemplars;
             exemplars = new Exemplar[exemplars.length];
             offeredExemplars.reset();

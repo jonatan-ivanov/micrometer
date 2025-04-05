@@ -17,6 +17,7 @@ package io.micrometer.core.samples;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.registry.otlp.*;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
@@ -42,6 +43,7 @@ public class OtlpExemplarsSample {
         };
 
         MeterRegistry registry = OtlpMeterRegistry.builder(config)
+            .metricsSender(new TestMetricsSender())
             .exemplarContextProvider(new TestExemplarContextProvider())
             .build();
 
@@ -62,6 +64,16 @@ public class OtlpExemplarsSample {
         public OtlpExemplarContext getExemplarContext() {
             String suffix = String.valueOf(counter.getAndIncrement());
             return new OtlpExemplarContext("66fd7359621b3043e2321480aaaa" + suffix, "e2321480aaaa" + suffix);
+        }
+
+    }
+
+    static class TestMetricsSender implements OtlpMetricsSender {
+
+        @Override
+        public void send(Request request) throws Exception {
+            System.out.println("Publishing...");
+            System.out.println(ExportMetricsServiceRequest.parseFrom(request.getMetricsData()));
         }
 
     }

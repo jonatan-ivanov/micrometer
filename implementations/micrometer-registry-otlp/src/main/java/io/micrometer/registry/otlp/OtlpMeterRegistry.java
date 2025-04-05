@@ -185,8 +185,6 @@ public class OtlpMeterRegistry extends PushMeterRegistry {
                         .build())
                     .build();
 
-                System.out.println("Publishing...");
-                System.out.println(request);
                 metricsSender.send(OtlpMetricsSender.Request.builder(request.toByteArray())
                     .address(config.url())
                     .headers(config.headers())
