@@ -15,10 +15,7 @@
  */
 package io.micrometer.core.instrument.binder.cache;
 
-import io.micrometer.core.instrument.Gauge;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Tag;
-import io.micrometer.core.instrument.Tags;
+import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.config.InvalidConfigurationException;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
@@ -127,7 +124,7 @@ public class JCacheMetrics<K, V, C extends Cache<K, V>> extends CacheMeterBinder
     @Override
     protected void bindImplementationSpecificMetrics(MeterRegistry registry) {
         if (objectName != null) {
-            Gauge.builder("cache.removals", objectName, objectName -> lookupStatistic("CacheRemovals"))
+            FunctionCounter.builder("cache.removals", objectName, objectName -> lookupStatistic("CacheRemovals"))
                 .tags(getTagsWithCacheName())
                 .description("Cache removals")
                 .register(registry);

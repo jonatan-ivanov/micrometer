@@ -15,7 +15,7 @@
  */
 package io.micrometer.core.instrument.binder.cache;
 
-import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.FunctionCounter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -89,8 +89,8 @@ class JCacheMetricsTest extends AbstractCacheMetricsTest {
 
         verifyCommonCacheMetrics(meterRegistry, metrics);
 
-        Gauge cacheRemovals = fetch(meterRegistry, "cache.removals").gauge();
-        assertThat(cacheRemovals.value()).isEqualTo(expectedAttributeValue.doubleValue());
+        FunctionCounter cacheRemovals = fetch(meterRegistry, "cache.removals").functionCounter();
+        assertThat(cacheRemovals.count()).isEqualTo(expectedAttributeValue.doubleValue());
     }
 
     @Test
@@ -100,7 +100,7 @@ class JCacheMetricsTest extends AbstractCacheMetricsTest {
         JCacheMetrics.monitor(meterRegistry, cache, expectedTag);
         // end::monitor[]
 
-        meterRegistry.get("cache.removals").tags(expectedTag).gauge();
+        meterRegistry.get("cache.removals").tags(expectedTag).functionCounter();
     }
 
     @Test
@@ -108,7 +108,7 @@ class JCacheMetricsTest extends AbstractCacheMetricsTest {
         MeterRegistry meterRegistry = new SimpleMeterRegistry();
         JCacheMetrics.monitor(meterRegistry, cache, "version", "1.0");
 
-        meterRegistry.get("cache.removals").tags(Tags.of("version", "1.0")).gauge();
+        meterRegistry.get("cache.removals").tags(Tags.of("version", "1.0")).functionCounter();
     }
 
     @Test
