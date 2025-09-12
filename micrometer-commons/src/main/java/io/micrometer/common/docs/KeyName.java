@@ -15,10 +15,13 @@
  */
 package io.micrometer.common.docs;
 
-import java.util.Arrays;
-import java.util.function.Predicate;
-
 import io.micrometer.common.KeyValue;
+import io.micrometer.common.KeyValueProvider;
+import org.jspecify.annotations.Nullable;
+
+import java.util.Arrays;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Represents a key name used for documenting instrumentation.
@@ -44,6 +47,28 @@ public interface KeyName {
      */
     default KeyValue withValue(String value) {
         return KeyValue.of(this, value);
+    }
+
+    default <C> KeyValue withExtractedValue(@Nullable C context, Function<C, @Nullable String> extractor) {
+        return withExtractedValue(context, extractor, KeyValue.NONE_VALUE);
+    }
+
+    default <C> KeyValue withExtractedValue(@Nullable C context, Function<C, @Nullable String> extractor,
+            String defaultValue) {
+        if (context != null) {
+            String value = extractor.apply(context);
+            return KeyValue.of(this, value != null ? value : defaultValue);
+        }
+
+        return KeyValue.of(this, defaultValue);
+    }
+
+    default <C> KeyValueProvider<C> withExtractor(Function<C, @Nullable String> extractor) {
+        return withExtractor(extractor, KeyValue.NONE_VALUE);
+    }
+
+    default <C> KeyValueProvider<C> withExtractor(Function<C, @Nullable String> extractor, String defaultValue) {
+        return context -> withExtractedValue(context, extractor, defaultValue);
     }
 
     /**
