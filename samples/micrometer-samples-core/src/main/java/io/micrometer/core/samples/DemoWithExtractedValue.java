@@ -33,11 +33,17 @@ public class DemoWithExtractedValue {
 
     enum MongoKeys implements KeyName {
 
-        COMMAND {
-            @Override
-            public String asString() {
-                return "command";
-            }
+        COMMAND("command");
+
+        private final String name;
+
+        MongoKeys(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String asString() {
+            return name;
         }
 
     }
