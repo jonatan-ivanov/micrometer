@@ -26,6 +26,7 @@ import io.micrometer.core.instrument.internal.DefaultGauge;
 import io.micrometer.core.instrument.internal.DefaultLongTaskTimer;
 import io.micrometer.core.instrument.internal.DefaultMeter;
 import io.micrometer.core.instrument.util.TimeUtils;
+import io.prometheus.metrics.config.EscapingScheme;
 import io.prometheus.metrics.config.PrometheusProperties;
 import io.prometheus.metrics.config.PrometheusPropertiesLoader;
 import io.prometheus.metrics.expositionformats.ExpositionFormats;
@@ -166,7 +167,8 @@ public class PrometheusMeterRegistry extends MeterRegistry {
     }
 
     private void scrape(OutputStream outputStream, String contentType, MetricSnapshots snapshots) throws IOException {
-        expositionFormats.findWriter(contentType).write(outputStream, snapshots);
+        expositionFormats.findWriter(contentType)
+            .write(outputStream, snapshots, EscapingScheme.fromAcceptHeader(contentType));
     }
 
     /**

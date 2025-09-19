@@ -1135,6 +1135,29 @@ class PrometheusMeterRegistryTest {
         assertThat(registry.scrape()).doesNotContain("_created");
     }
 
+    @Test
+    void unicodeScrapeOutputDisabled() {
+        registry.counter("test.我喜欢茶", "test.我喜欢茶", "test.我喜欢茶").increment();
+
+        // see: https://github.com/prometheus/client_java/issues/1578
+        String expected = "test______total{test_____=\"test.我喜欢茶\"} 1.0";
+        assertThat(registry.scrape()).contains(expected);
+        assertThat(registry.scrape(PrometheusTextFormatWriter.CONTENT_TYPE)).contains(expected);
+        assertThat(registry.scrape(OpenMetricsTextFormatWriter.CONTENT_TYPE)).contains(expected);
+    }
+
+    @Test
+    void unicodeScrapeOutputEnabled() {
+        registry.counter("test_我喜欢茶", "test.我喜欢茶", "test_我喜欢茶").increment();
+
+        // see: https://github.com/prometheus/client_java/issues/1576
+        String expected = "{\"test_我喜欢茶_total\",\"test.我喜欢茶\"=\"test_我喜欢茶\"} 1.0";
+        assertThat(registry.scrape(PrometheusTextFormatWriter.CONTENT_TYPE + "; escaping=allow-utf-8"))
+            .contains(expected);
+        assertThat(registry.scrape(OpenMetricsTextFormatWriter.CONTENT_TYPE + "; escaping=allow-utf-8"))
+            .contains(expected);
+    }
+
     private static class CountingPrometheusNamingConvention extends PrometheusNamingConvention {
 
         AtomicInteger nameCount = new AtomicInteger();
