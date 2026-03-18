@@ -17,7 +17,6 @@ package io.micrometer.prometheusmetrics;
 
 import io.micrometer.common.util.internal.logging.WarnThenDebugLogger;
 import io.micrometer.core.instrument.*;
-import io.micrometer.core.instrument.cumulative.CumulativeFunctionCounter;
 import io.micrometer.core.instrument.cumulative.CumulativeFunctionTimer;
 import io.micrometer.core.instrument.distribution.*;
 import io.micrometer.core.instrument.distribution.HistogramSnapshot;
@@ -375,7 +374,7 @@ public class PrometheusMeterRegistry extends MeterRegistry {
 
     @Override
     protected <T> FunctionCounter newFunctionCounter(Meter.Id id, T obj, ToDoubleFunction<T> countFunction) {
-        FunctionCounter fc = new CumulativeFunctionCounter<>(id, obj, countFunction);
+        FunctionCounter fc = new PrometheusFunctionCounter<>(id, obj, countFunction);
         long createdTimestampMillis = clock.wallTime();
         applyToCollector(id, (collector) -> {
             List<String> tagValues = tagValues(id);

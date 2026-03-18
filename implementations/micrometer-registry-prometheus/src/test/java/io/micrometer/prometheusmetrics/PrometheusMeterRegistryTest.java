@@ -450,6 +450,13 @@ class PrometheusMeterRegistryTest {
         assertThat(registry.scrape()).contains("api_requests_total 1.0");
     }
 
+    @Issue("#7302")
+    @Test
+    void counterShouldNotBeNegative() {
+        FunctionCounter.builder("test.fnc.negative", this, object -> -1.0).register(registry);
+        assertThat(registry.scrape()).contains("test_fnc_negative_total NaN");
+    }
+
     private Condition<Iterable<? extends MetricSnapshot>> withNameAndQuantile(String name) {
         return new Condition<>(
                 metricSnapshots -> ((MetricSnapshots) metricSnapshots).stream()
