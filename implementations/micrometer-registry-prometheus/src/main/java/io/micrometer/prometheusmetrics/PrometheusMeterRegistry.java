@@ -568,11 +568,16 @@ public class PrometheusMeterRegistry extends MeterRegistry {
     private void onMeterRemoved(Meter meter) {
         MicrometerCollector collector = collectorMap.get(getConventionName(meter.getId()));
         if (collector != null) {
+            // If this meter is the last one in the collector, the collector will be empty
+            // after this. Empty collectors are intentionally kept in PrometheusRegistry
+            // (no call to getPrometheusRegistry().unregister(collector) here).
+            // Unregistering one and registering a new one for the same name while
+            // a scrape is in progress can make the scrape collect both,
+            // which results in DuplicateLabelsException, see:
+            // https://github.com/micrometer-metrics/micrometer/issues/8182
+            // The collector will be unregistered if necessary at registration-time,
+            // see the applyToCollector method.
             collector.remove(meter.getId());
-            if (collector.isEmpty()) {
-                collectorMap.remove(getConventionName(meter.getId()));
-                getPrometheusRegistry().unregister(collector);
-            }
         }
     }
 
@@ -586,10 +591,11 @@ public class PrometheusMeterRegistry extends MeterRegistry {
     private void applyToCollector(Meter.Id id, Consumer<MicrometerCollector> consumer) {
         collectorMap.compute(getConventionName(id), (name, existingCollector) -> {
             if (existingCollector == null) {
-                MicrometerCollector micrometerCollector = new MicrometerCollector(name, id);
-                consumer.accept(micrometerCollector);
-                registry.register(micrometerCollector);
-                return micrometerCollector;
+                return createMicrometerCollector(name, id, consumer);
+            }
+            else if (existingCollector.isEmpty() && !existingCollector.isCompatibleWith(id)) {
+                registry.unregister(existingCollector);
+                return createMicrometerCollector(name, id, consumer);
             }
 
             if (!existingCollector.getOriginalId().getName().equals(id.getName())) {
@@ -611,6 +617,14 @@ public class PrometheusMeterRegistry extends MeterRegistry {
             consumer.accept(existingCollector);
             return existingCollector;
         });
+    }
+
+    private MicrometerCollector createMicrometerCollector(String name, Meter.Id id,
+            Consumer<MicrometerCollector> consumer) {
+        MicrometerCollector micrometerCollector = new MicrometerCollector(name, id);
+        consumer.accept(micrometerCollector);
+        registry.register(micrometerCollector);
+        return micrometerCollector;
     }
 
     @Override

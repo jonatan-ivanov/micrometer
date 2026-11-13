@@ -36,6 +36,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -159,6 +160,56 @@ class PrometheusMeterRegistryTest {
             .hasMessage(
                     "Prometheus requires that all meters with the same name have the same type. There is already an existing meter named 'cache_removals' that is a GAUGE. The meter you are attempting to register is a COUNTER.");
         assertThat(registry.scrape().lines()).hasSize(3).contains("# TYPE cache_removals gauge");
+    }
+
+    @Test
+    @Issue("#8182")
+    void scrapeWhileSingleRowMultiGaugeIsOverwritten() throws InterruptedException {
+        // Extra meters since the longer the scrape takes, the wider the race window is
+        for (int i = 0; i < 500; i++) {
+            int index = i;
+            Gauge.builder("other.gauge." + index, () -> index).register(registry);
+        }
+
+        MultiGauge multiGauge = MultiGauge.builder("my.multigauge").register(registry);
+        List<MultiGauge.Row<Number>> rows = List.of(MultiGauge.Row.of(Tags.of("key", "value1"), 1));
+        multiGauge.register(rows, true);
+
+        AtomicBoolean stop = new AtomicBoolean();
+        Thread updater = new Thread(() -> {
+            while (!stop.get()) {
+                multiGauge.register(rows, true);
+            }
+        });
+        updater.start();
+
+        try {
+            assertThatCode(() -> {
+                Instant deadline = Instant.now().plus(Duration.ofSeconds(5));
+                while (Instant.now().isBefore(deadline)) {
+                    registry.scrape();
+                }
+            }).doesNotThrowAnyException();
+        }
+        finally {
+            stop.set(true);
+            updater.join();
+        }
+    }
+
+    @Test
+    @Issue("#8182")
+    void meterWithDifferentTypeCanBeRegisteredAfterRemovingAllMetersWithTheSameName() {
+        registry.config().onMeterRegistrationFailed((id, reason) -> fail(reason));
+        Gauge gauge = Gauge.builder("my.meter", () -> 42).register(registry);
+        assertThat(registry.scrape()).contains("# TYPE my_meter gauge", "my_meter 42.0");
+
+        registry.remove(gauge);
+        assertThat(registry.scrape()).doesNotContain("my_meter");
+
+        Counter.builder("my.meter").register(registry).increment();
+        assertThat(registry.scrape()).contains("# TYPE my_meter_total counter", "my_meter_total 1.0")
+            .doesNotContain("# TYPE my_meter gauge");
     }
 
     @Test

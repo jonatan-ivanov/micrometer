@@ -78,6 +78,10 @@ class MicrometerCollector implements MultiCollector {
         return originalMeterId;
     }
 
+    boolean isCompatibleWith(Meter.Id id) {
+        return originalMeterId.getName().equals(id.getName()) && originalMeterId.getType().equals(id.getType());
+    }
+
     @Override
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public MetricSnapshots collect() {
